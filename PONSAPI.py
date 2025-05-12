@@ -10,7 +10,6 @@ from datetime import datetime
 from collections import Counter
 from openpyxl import Workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
-from pyxlsb import open_workbook
 
 # Selector to choose the function to run
 # Options: "fetch", "process", "concatenate", "schematize", "reconcile"
@@ -24,11 +23,9 @@ input_file_path = os.path.join(base_directory, "Inputs_for_PONS_API.txt")
 output_directory = os.path.join(base_directory, "PONS json Files")
 concatenated_file_path = os.path.join(base_directory, "concatenated.json")
 processed_file_path = os.path.join(base_directory, "processed.json")
-schema_file_path = os.path.join(base_directory, "schema.json")
 query_parts_of_speech_json_path = os.path.join(base_directory, "Query Parts of Speech.json")
 flashcards_xlsb_path = os.path.join(base_directory, "Flashcards.xlsb")
 xlsx_output_file = os.path.join(base_directory, f"reconciliation_results_{datetime.now().strftime('%Y%m%dT%H%M%S')}.xlsx")
-schematic_file_path = os.path.join(base_directory, "schematic.json")
 
 # Ensure the output directory exists
 os.makedirs(output_directory, exist_ok=True)
@@ -51,106 +48,59 @@ logging.basicConfig(
 logging.info("Script started")
 logging.info(f"Mode: {mode}")
 
-# Function to fetch data from the concatenated JSON file and save it in a processed format
-def fetch():
-    if not os.path.exists(concatenated_file_path):
-        print(f"Concatenated JSON file not found at {concatenated_file_path}. Please run 'concatenate' mode first.")
-        return
 
-    with open(concatenated_file_path, "r", encoding="utf-8") as file:
-        concatenated_data = json.load(file)
-
-    with open(processed_file_path, "w", encoding="utf-8") as processed_file:
-        json.dump(concatenated_data, processed_file, ensure_ascii=False, indent=4)
-
-# Function to process the fetched JSON data
-def process():
-    if not os.path.exists(processed_file_path):
-        print(f"Processed JSON file not found at {processed_file_path}. Please run 'fetch' mode first.")
-        return
-
-    with open(processed_file_path, "r", encoding="utf-8") as file:
-        data = json.load(file)
-
-    processed_data = []
-    regex_patterns = {
-        "example_pattern_1": (
-            r"<span class=\\"wordclass\\">([^<]+)</span>",
-            lambda match: {"word_class": match.group(1)}
-        ),
-        "example_pattern_2": (
-            r"<span class=\\"verbclass\\">([^<]+)</span>",
-            lambda match: {"verb_class": match.group(1)}
-        )
-    }
-    regex_replacements = {
-        r"<acronym title=\\?\"([^<].*)\\?\">[^<].*</acronym>": r"\1",
-        r"<strong class=\\?\"headword\\?\">([^<]+)</strong>": r"\1",
-        r"<strong class=\\?\"tilde\\?\">([^<]+)</strong>": r"\1"
-    }
-
-    for entry in data:
-        query = entry["query"]
-        response_data = entry.get("data", {})
-        if "error" in response_data:
-            continue
-
-        for language_entry in response_data.get("entries", []):
-            for hit in language_entry.get("hits", []):
-                for rom in hit.get("roms", []):
-                    headword_full = rom.get("headword_full", "")
-                    extracted_data, processed_text = extract_patterns(headword_full, regex_patterns)
-                    rom.update(extracted_data)
-                    rom["headword_full_after_regex"] = perform_replacements(processed_text, regex_replacements)
-
-        processed_data.append(entry)
-
-    with open(processed_file_path, "w", encoding="utf-8") as file:
-        json.dump(processed_data, file, ensure_ascii=False, indent=4)
-
-# Function to extract patterns from text
-def extract_patterns(text, patterns):
-    extracted_data = {}
-    remaining_text = text
-    for key, (pattern, func) in patterns.items():
-        matches = re.finditer(pattern, remaining_text)
-        extracted_matches = [func(match) for match in matches]
-        if extracted_matches:
-            extracted_data[key] = extracted_matches if len(extracted_matches) > 1 else extracted_matches[0]
-            remaining_text = re.sub(pattern, "", remaining_text, count=(1 if len(extracted_matches) == 1 else 0))
-    return extracted_data, remaining_text.strip()
-
-# Function to perform regex replacements
-def perform_replacements(text, replacements):
-    for pattern, replacement in replacements.items():
-        text = re.sub(pattern, replacement, text)
-    return text
-
-# Function to load the "Anki" table from Flashcards.xlsb
-def load_anki_table_from_xlsb(file_path):
+def setup_logging():
     """
-    Load the 'Anki' table from the Flashcards.xlsb file in read-only mode.
-    This function can parse the file even if it is open in Microsoft Excel.
+    Sets up the logging configuration and ensures the output directory exists.
     """
-    anki_data = []
+    os.makedirs(output_directory, exist_ok=True)
+    logging.basicConfig(
+        filename=os.path.join(base_directory, f"debug_{datetime.now().strftime('%Y%m%dT%H%M%S')}.log"),
+        level=logging.DEBUG,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
 
-    try:
-        with open_workbook(file_path) as workbook:
-            with workbook.get_sheet("Anki") as sheet:
-                rows = sheet.rows()
-                headers = [cell.v for cell in next(rows)]  # Extract headers from the first row
-                header_map = {header: idx for idx, header in enumerate(headers)}
 
-                for row in rows:
-                    row_data = {header: row[header_map[header]].v if header_map[header] < len(row) else None for header in headers}
-                    anki_data.append(row_data)
+def handle_cutoffs(query, part_of_speech):
+    """
+    Handles cutoff logic for verbs, adverbs, and unclassified words.
 
-    except Exception as e:
-        print(f"An error occurred while reading the 'Anki' table: {e}")
-    
-    return anki_data
+    Args:
+        query (str): The original query.
+        part_of_speech (str): The part of speech of the query.
 
-# Function to reconcile entries
+    Returns:
+        tuple: Revised query, cutoff type, and cutoff applied.
+    """
+    revised_query = ""
+    cutoff_type = ""
+    cutoff_applied = ""
+
+    if part_of_speech == "Verb":
+        for cutoff in cutoff_strings:
+            if query.endswith(cutoff):
+                revised_query = query[: -len(cutoff)].strip()
+                cutoff_type = "Verb Cutoff"
+                cutoff_applied = cutoff
+                break
+    elif part_of_speech in ["Adverb", "Unclassified Word"]:
+        if query.endswith("ено"):
+            revised_query = re.sub(r"ено$", "ен", query)
+            cutoff_type = "Adverb Modification"
+            cutoff_applied = "ено → ен"
+        elif query.endswith("но"):
+            revised_query = re.sub(r"но$", "ен", query)
+            cutoff_type = "Adverb Modification"
+            cutoff_applied = "но → ен"
+        elif query.endswith("о"):
+            revised_query = re.sub(r"о$", "ен", query)
+            cutoff_type = "Adverb Modification"
+            cutoff_applied = "о → ен"
+
+    return revised_query, cutoff_type, cutoff_applied
+
+
 def reconcile_entries():
     """
     Reconciles entries between Flashcards.xlsb and concatenated.json.
@@ -192,49 +142,13 @@ def reconcile_entries():
                 note_id, bulgarian_1, bulgarian_1_status, bulgarian_2, bulgarian_2_status, part_of_speech
             ])
 
-        # Create the Excel file
-        workbook = Workbook()
-        sheet = workbook.active
-        sheet.title = "Reconciliation Results"
-
-        # Write headers
-        headers = [
-            "Note ID", "Bulgarian 1", "Bulgarian 1 Status", 
-            "Bulgarian 2", "Bulgarian 2 Status", "Part of Speech"
-        ]
-        sheet.append(headers)
-
-        # Write data
-        for row in results:
-            sheet.append(row)
-
-        # Auto-fit column widths
-        for column in sheet.columns:
-            max_length = max(len(str(cell.value)) for cell in column if cell.value)
-            column_letter = column[0].column_letter
-            sheet.column_dimensions[column_letter].width = max_length + 2
-
-        # Apply table style
-        table_range = f"A1:F{sheet.max_row}"
-        table = Table(displayName="Table1", ref=table_range)
-        style = TableStyleInfo(
-            name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False,
-            showRowStripes=True, showColumnStripes=False
-        )
-        table.tableStyleInfo = style
-        sheet.add_table(table)
-
-        # Save the workbook
-        try:
-            workbook.save(xlsx_output_file)
-            print(f"Reconciliation completed. Results saved to {xlsx_output_file}")
-        except IOError as e:
-            print(f"Error writing reconciliation results to '{xlsx_output_file}': {e}")
+        # Finalize and save results
+        save_reconciliation_results(results)
 
     except Exception as e:
         print(f"An error occurred: {e}")
 
-# Processes Bulgarian fields
+
 def process_bulgarian_field(bulgarian_field, concatenated_data):
     """
     Processes a single Bulgarian field (Bulgarian 1 or Bulgarian 2).
@@ -252,27 +166,66 @@ def process_bulgarian_field(bulgarian_field, concatenated_data):
     # Check the contents of the data field
     data = concatenated_entry.get("data", {})
     if isinstance(data, dict):
-        # Explicitly check for the "Received status code 204" error
         if data.get("error") == "Received status code 204":
             return "Not Found"
     elif isinstance(data, list):
-        # Check if there are no hits
         hits = [item.get("hits", []) for item in data]
         if not any(hits):  # No hits at all
             return "No Headword"
-        # Check for roms in hits
         if any("roms" in hit for sublist in hits for hit in sublist):
             return "Found"
 
-    # If none of the above conditions match, assume "No Headword"
     return "No Headword"
 
+
+def save_reconciliation_results(results):
+    """
+    Saves reconciliation results to an Excel file.
+
+    Args:
+        results (list): The reconciliation results.
+    """
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Reconciliation Results"
+
+    # Write headers
+    headers = [
+        "Note ID", "Bulgarian 1", "Bulgarian 1 Status",
+        "Bulgarian 2", "Bulgarian 2 Status", "Part of Speech"
+    ]
+    sheet.append(headers)
+
+    # Write data
+    for row in results:
+        sheet.append(row)
+
+    # Auto-fit column widths
+    for column in sheet.columns:
+        max_length = max(len(str(cell.value)) for cell in column if cell.value)
+        column_letter = column[0].column_letter
+        sheet.column_dimensions[column_letter].width = max_length + 2
+
+    # Apply table style
+    table_range = f"A1:F{sheet.max_row}"
+    table = Table(displayName="Table1", ref=table_range)
+    style = TableStyleInfo(
+        name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False,
+        showRowStripes=True, showColumnStripes=False
+    )
+    table.tableStyleInfo = style
+    sheet.add_table(table)
+
+    # Save the workbook
+    try:
+        workbook.save(xlsx_output_file)
+        print(f"Reconciliation completed. Results saved to {xlsx_output_file}")
+    except IOError as e:
+        print(f"Error writing reconciliation results to '{xlsx_output_file}': {e}")
+
+
 # Main workflow logic
-if mode == "fetch":
-    fetch()
-elif mode == "process":
-    process()
-elif mode == "reconcile":
+if mode == "reconcile":
     reconcile_entries()
 else:
     print(f"Unknown mode: {mode}")
