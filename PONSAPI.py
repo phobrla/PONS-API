@@ -87,6 +87,47 @@ def handle_cutoffs(query, part_of_speech):
     return revised_query, cutoff_type, cutoff_applied
 
 
+def process_entries():
+    """
+    Processes entries from concatenated.json to generate a processed.json file.
+    This includes filtering and enriching data as needed.
+    """
+    if not os.path.exists(concatenated_file_path):
+        print(f"Concatenated JSON file not found at {concatenated_file_path}. Please run 'fetch' mode first.")
+        return
+
+    try:
+        # Load concatenated.json
+        with open(concatenated_file_path, 'r', encoding='utf-8') as file:
+            concatenated_data = json.load(file)
+
+        processed_data = []
+
+        # Process each entry in concatenated.json
+        for entry in concatenated_data:
+            query = entry.get("query", "").strip()
+            data = entry.get("data", {})
+            revised_query, cutoff_type, cutoff_applied = handle_cutoffs(query, "Adverb")  # Example logic
+
+            processed_entry = {
+                "query": query,
+                "data": data,
+                "revised_query": revised_query,
+                "cutoff_type": cutoff_type,
+                "cutoff_applied": cutoff_applied
+            }
+            processed_data.append(processed_entry)
+
+        # Save the processed data to processed.json
+        with open(processed_file_path, 'w', encoding='utf-8') as file:
+            json.dump(processed_data, file, ensure_ascii=False, indent=4)
+
+        print(f"Processing completed. Results saved to {processed_file_path}")
+
+    except Exception as e:
+        print(f"An error occurred during processing: {e}")
+
+
 def reconcile_entries():
     """
     Reconciles entries between Flashcards.xlsb and concatenated.json.
@@ -204,6 +245,8 @@ def save_reconciliation_results(results):
 # Main workflow logic
 if mode == "reconcile":
     reconcile_entries()
+elif mode == "process":
+    process_entries()
 else:
     print(f"Unknown mode: {mode}")
     print("Available modes: fetch, process, reconcile")
