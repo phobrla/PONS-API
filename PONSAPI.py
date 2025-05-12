@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime
 from collections import Counter
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 # Selector to choose the function to run
@@ -25,7 +25,6 @@ concatenated_file_path = os.path.join(base_directory, "concatenated.json")
 processed_file_path = os.path.join(base_directory, "processed.json")
 query_parts_of_speech_json_path = os.path.join(base_directory, "Query Parts of Speech.json")
 flashcards_xlsb_path = os.path.join(base_directory, "Flashcards.xlsb")
-xlsx_output_file = os.path.join(base_directory, f"reconciliation_results_{datetime.now().strftime('%Y%m%dT%H%M%S')}.xlsx")
 
 # Ensure the output directory exists
 os.makedirs(output_directory, exist_ok=True)
@@ -47,19 +46,6 @@ logging.basicConfig(
 )
 logging.info("Script started")
 logging.info(f"Mode: {mode}")
-
-
-def setup_logging():
-    """
-    Sets up the logging configuration and ensures the output directory exists.
-    """
-    os.makedirs(output_directory, exist_ok=True)
-    logging.basicConfig(
-        filename=os.path.join(base_directory, f"debug_{datetime.now().strftime('%Y%m%dT%H%M%S')}.log"),
-        level=logging.DEBUG,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
 
 
 def handle_cutoffs(query, part_of_speech):
@@ -180,48 +166,39 @@ def process_bulgarian_field(bulgarian_field, concatenated_data):
 
 def save_reconciliation_results(results):
     """
-    Saves reconciliation results to an Excel file.
+    Saves reconciliation results to the 'rec_results' tab of the existing Flashcards.xlsb file.
 
     Args:
         results (list): The reconciliation results.
     """
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "Reconciliation Results"
-
-    # Write headers
-    headers = [
-        "Note ID", "Bulgarian 1", "Bulgarian 1 Status",
-        "Bulgarian 2", "Bulgarian 2 Status", "Part of Speech"
-    ]
-    sheet.append(headers)
-
-    # Write data
-    for row in results:
-        sheet.append(row)
-
-    # Auto-fit column widths
-    for column in sheet.columns:
-        max_length = max(len(str(cell.value)) for cell in column if cell.value)
-        column_letter = column[0].column_letter
-        sheet.column_dimensions[column_letter].width = max_length + 2
-
-    # Apply table style
-    table_range = f"A1:F{sheet.max_row}"
-    table = Table(displayName="Table1", ref=table_range)
-    style = TableStyleInfo(
-        name="TableStyleMedium2", showFirstColumn=False, showLastColumn=False,
-        showRowStripes=True, showColumnStripes=False
-    )
-    table.tableStyleInfo = style
-    sheet.add_table(table)
-
-    # Save the workbook
     try:
-        workbook.save(xlsx_output_file)
-        print(f"Reconciliation completed. Results saved to {xlsx_output_file}")
+        # Load the existing workbook
+        workbook = load_workbook(flashcards_xlsb_path)
+
+        # Check if the 'rec_results' sheet exists, and remove it to replace with the new data
+        if 'rec_results' in workbook.sheetnames:
+            del workbook['rec_results']
+
+        # Create a new sheet named 'rec_results'
+        sheet = workbook.create_sheet('rec_results')
+
+        # Write headers
+        headers = [
+            "Note ID", "Bulgarian 1", "Bulgarian 1 Status",
+            "Bulgarian 2", "Bulgarian 2 Status", "Part of Speech"
+        ]
+        sheet.append(headers)
+
+        # Write data
+        for row in results:
+            sheet.append(row)
+
+        # Save the workbook back to the same file
+        workbook.save(flashcards_xlsb_path)
+        print(f"Reconciliation completed. Results saved to the 'rec_results' tab in {flashcards_xlsb_path}")
+
     except IOError as e:
-        print(f"Error writing reconciliation results to '{xlsx_output_file}': {e}")
+        print(f"Error writing reconciliation results to '{flashcards_xlsb_path}': {e}")
 
 
 # Main workflow logic
