@@ -1,5 +1,4 @@
 Path,Target Element,Example Query,Example Value,Regex
-[0].data.error,,санитария,Received status code 204,Received status code 204
 [2].data[0].hits[0].roms[0].arabs[1].header,,лайно,"2. лайно <span class=\""rhetoric\"">pejorative</span> <span class=\""sense\"">(за човек)</span>:","<acronym title=\\""([^<]*)\\"">[^<]*</acronym>"
 [2].data[0].hits[0].roms[0].headword_full,,лайно,"лайн|о̀ <span class=\""flexion\"">&lt;-а̀&gt;</span> <span class=\""wordclass\"">noun</span> <span class=\""genus\"">neuter</span>","<acronym title=\\""([^<]*)\\"">[^<]*</acronym>"
 [2].data[0].hits[0].roms[0].arabs[1].translations[1].source,span:example,лайно,"<span class=\example\""><strong class=\""tilde\"">лайно</strong> такова!</span>","<span class=\\""example\\"">([^<]*)</span>"
