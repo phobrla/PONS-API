@@ -7,7 +7,7 @@ import json
 import logging
 from datetime import datetime
 from collections import Counter
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 
 # Selector to choose the function to run
 # Options: "fetch", "process"
@@ -22,6 +22,7 @@ output_directory = os.path.join(base_directory, "PONS json Files")
 concatenated_file_path = os.path.join(output_directory, "concatenated.json")
 query_parts_of_speech_json_path = os.path.join(base_directory, "Query Parts of Speech.json")
 flashcards_xlsb_path = os.path.join(base_directory, "Flashcards.xlsb")
+xlsx_output_file = os.path.join(base_directory, "Reconciled_Results.xlsx")
 
 # Ensure the output directory exists
 os.makedirs(output_directory, exist_ok=True)
@@ -121,92 +122,142 @@ def process_and_reconcile():
         with open(concatenated_file_path, 'r', encoding='utf-8') as file:
             concatenated_data = json.load(file)
 
+        # Load Anki table from Flashcards.xlsb
+        workbook = load_workbook(flashcards_xlsb_path, data_only=True)
+        anki_sheet = workbook["Anki"]
+
+        # Collect Anki data
+        anki_data = []
+        for row in anki_sheet.iter_rows(min_row=2, values_only=True):  # Skip header row
+            anki_data.append({
+                "Bulgarian 1": row[0],
+                "Bulgarian 2": row[1],
+                "Part of Speech": row[2],
+                "Note ID": row[3]
+            })
+
         processed_data = []
+        results = []
 
-        # Process each language entry in the concatenated data
-        for lang_entry in concatenated_data:
-            lang_data = {
-                "lang": lang_entry.get("lang", ""),
-                "hits": []
-            }
+        # Matching logic
+        for anki_row in anki_data:
+            bulgarian_1 = anki_row["Bulgarian 1"]
+            part_of_speech = anki_row["Part of Speech"]
 
-            for hit in lang_entry.get('data', {}).get('hits', []):
-                hit_data = {
-                    "type": hit.get("type", ""),
-                    "opendict": hit.get("opendict", False),
-                    "roms": []
-                }
+            match_level = "No Match"
+            matched_value = None
+            cutoff_applied = None
 
-                for rom in hit.get('roms', []):
-                    rom_data = {
-                        "headword": rom.get("headword", ""),
-                        "headword_full": rom.get("headword_full", ""),
-                        "wordclass": rom.get("wordclass", ""),
-                        "conjugation": "",
-                        "verbclass": "",
-                        "arabs": []
-                    }
+            for json_entry in concatenated_data:
+                query = json_entry["query"]
+                data = json_entry.get("data", {})
 
-                    # Extract conjugation and verbclass from headword_full
-                    headword_full = rom.get('headword_full', '')
-                    patterns = {
-                        'conjugation': (r'<span class=\\?"conjugation\\?"><acronym title=\\?"([^<][a-z ]+)\\?">[^<][a-z]+</acronym></span>', lambda match: match.group(1)),
-                        'verbclass': (r'<span class=\\?"verbclass\\?"><acronym title=\\?"([^<][a-zA-Z ]+)\\?">[^<][a-z]+</acronym></span>', lambda match: match.group(1))
-                    }
+                # Level 1: Exact match with matching wordclass
+                if bulgarian_1 == query:
+                    for rom in extract_roms(data):
+                        wordclass = extract_wordclass(rom)
+                        if wordclass == part_of_speech:
+                            match_level = "1"
+                            matched_value = query
+                            break
 
-                    extracted_data = extract_patterns(headword_full, patterns)
-                    rom_data.update(extracted_data)
-                    rom_data['headword_full'] = extracted_data['text']
+                # Level 2: Exact match but mismatched wordclass
+                if match_level == "No Match" and bulgarian_1 == query:
+                    match_level = "2"
+                    matched_value = query
+                    break
 
-                    for arab in rom.get('arabs', []):
-                        arab_data = {
-                            "header": arab.get("header", ""),
-                            "sense": "",
-                            "entrynumber": "",
-                            "reflection": "",
-                            "translations": []
-                        }
+                # Level 3: Various partial matches
+                if match_level == "No Match":
+                    match_level, matched_value = match_partial(bulgarian_1, data)
 
-                        # Extract sense, entrynumber, and reflection from header
-                        header = arab.get('header', '')
-                        patterns = {
-                            'entrynumber': (r'^\d\.', lambda match: match.group(0)),
-                            'sense': (r'<span class=\\?"sense\\?">\(?(.*?)\)?</span>', lambda match: match.group(1)),
-                            'reflection': (r'<span class=\\?"reflection\\?">\(?(.*?)\)?</span>', lambda match: match.group(1))
-                        }
+            # Level 4: Apply cutoff logic
+            if match_level == "No Match":
+                cutoff_applied, revised_query = apply_cutoff_logic(bulgarian_1)
+                for json_entry in concatenated_data:
+                    if revised_query == json_entry["query"]:
+                        match_level = "4"
+                        matched_value = revised_query
+                        break
 
-                        extracted_data = extract_patterns(header, patterns)
-                        arab_data.update(extracted_data)
-                        arab_data['header'] = extracted_data['text']
+            # Append results
+            results.append({
+                "Bulgarian 1": bulgarian_1,
+                "Match Level": match_level,
+                "Matched Value": matched_value,
+                "Cutoff Applied": cutoff_applied
+            })
 
-                        # Filter and add translations
-                        for translation in arab.get('translations', []):
-                            translation_data = {
-                                "source": translation.get("source", ""),
-                                "target": translation.get("target", "")
-                            }
-
-                            extracted_data = extract_patterns(translation_data['source'], patterns)
-                            translation_data.update(extracted_data)
-                            translation_data['source'] = extracted_data['text']
-
-                            arab_data['translations'].append(translation_data)
-
-                        rom_data["arabs"].append(arab_data)
-
-                    hit_data["roms"].append(rom_data)
-                lang_data["hits"].append(hit_data)
-
-            processed_data.append(lang_data)
-
-        # Save the processed data (optional or for further reconciliation)
-        with open(concatenated_file_path.replace('.json', '_processed.json'), 'w', encoding='utf-8') as output_file:
-            json.dump(processed_data, output_file, ensure_ascii=False, indent=4)
-
-        print(f"Processing and reconciliation completed. Processed data saved.")
+        # Save results
+        save_results_to_excel(results, xlsx_output_file)
+        print(f"Results saved to {xlsx_output_file}")
 
     except Exception as e:
         print(f"An error occurred: {e}")
+
+
+# Extract ROMS from JSON data
+def extract_roms(data):
+    hits = data.get("hits", [])
+    for hit in hits:
+        for rom in hit.get("roms", []):
+            yield rom
+
+
+# Extract wordclass from headword_full
+def extract_wordclass(rom):
+    headword_full = rom.get("headword_full", "")
+    match = re.search(r'<span class="wordclass">([^<]+)</span>', headword_full)
+    return match.group(1) if match else None
+
+
+# Match partial fields
+def match_partial(bulgarian_1, data):
+    for rom in extract_roms(data):
+        header = rom.get("header", "")
+        source = rom.get("source", "")
+
+        # Match partial fields
+        partial_matches = [
+            (r'<span class="indirect_reference_OTHER">([^<]+)</span>', "3b"),
+            (r'<span class="indirect_reference_RQ">([^<]+)</span>', "3c"),
+            (r'<span class="full_collocation">([^<]+)</span>', "3d"),
+            (r'<span class="reflection">([^<]+)</span>', "3e"),
+        ]
+
+        for pattern, level in partial_matches:
+            match = re.search(pattern, header) or re.search(pattern, source)
+            if match and bulgarian_1 == match.group(1):
+                return level, match.group(1)
+
+    return "No Match", None
+
+
+# Apply cutoff logic
+def apply_cutoff_logic(bulgarian_1):
+    for cutoff in cutoff_strings:
+        if bulgarian_1.endswith(cutoff):
+            revised_query = bulgarian_1[: -len(cutoff)].strip()
+            return cutoff, revised_query
+    return None, None
+
+
+# Save results to Excel
+def save_results_to_excel(results, output_file):
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Reconciled Results"
+
+    # Write header
+    headers = ["Bulgarian 1", "Match Level", "Matched Value", "Cutoff Applied"]
+    sheet.append(headers)
+
+    # Write rows
+    for result in results:
+        sheet.append([result["Bulgarian 1"], result["Match Level"], result["Matched Value"], result["Cutoff Applied"]])
+
+    # Save workbook
+    workbook.save(output_file)
 
 
 # Main workflow logic
