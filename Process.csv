@@ -10,7 +10,6 @@ Path,Target Element,Example Query,Example Value,Regex
 [2].data[0].hits[0].roms[0].arabs[0].translations[0].source,strong:headword,лайно,"<strong class=\""headword\"">лайно</strong>",
 [2].data[0].hits[0].roms[0].arabs[0].translations[0].target,,лайно,turd,
 [2].data[0].hits[0].roms[0].arabs[1].translations[1].source,strong:tilde,лайно,"<span class=\""example\""><strong class=\""tilde\"">лайно</strong> такова!</span>",
-[2].data[0].hits[0].roms[0].headword,,лайно,лайн|о̀,
 [4].data[0].hits[0].roms[0].headword_full,span:info,никой,"нѝко|й <span class=\wordclass\"">pronoun</span> <span class=\""info\"">отр</span>","<span class=\\""info\\"">([^<]*)</span>"
 [6].data[0].hits[0].roms[0].headword_full,span:conjugation,яхвам,"я̀хвам <span class=\conjugation\"">imperfective form</span>, <span class=\""headword\"">я̀хна</span> <span class=\""conjugation\"">perfective form</span> <span class=\""wordclass\"">VERB</span> <span class=\""verbclass\"">transitive verb</span> <span class=\""sense\"">(възсядам)</span>","<span class=\\""conjugation\\"">(imperfective|perfective)</span>"
 [6].data[0].hits[0].roms[0].headword_full,span:verbclass,яхвам,"я̀хвам <span class=\conjugation\"">imperfective form</span>, <span class=\""headword\"">я̀хна</span> <span class=\""conjugation\"">perfective form</span> <span class=\""wordclass\"">VERB</span> <span class=\""verbclass\"">transitive verb</span> <span class=\""sense\"">(възсядам)</span>","<span class=\\""verbclass\\"">([^<]*)</span>"
