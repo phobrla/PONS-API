@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 
 import requests
-import csv
 import os
 import re
 import json
 import logging
 from datetime import datetime
 from collections import Counter
-from openpyxl import Workbook, load_workbook
-from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl import load_workbook
 
 # Selector to choose the function to run
-# Options: "fetch", "process", "concatenate", "schematize", "reconcile"
-mode = "reconcile"  # Default mode is set to "reconcile"
+# Options: "fetch", "process"
+mode = "process"  # Default mode is set to "process"
 
 # Base directory for all file paths
 base_directory = "/Users/phobrla/Library/CloudStorage/OneDrive-Personal/Documents/Bulgarian Language Learning"
@@ -21,8 +19,7 @@ base_directory = "/Users/phobrla/Library/CloudStorage/OneDrive-Personal/Document
 # Paths and directories
 input_file_path = os.path.join(base_directory, "Inputs_for_PONS_API.txt")
 output_directory = os.path.join(base_directory, "PONS json Files")
-concatenated_file_path = os.path.join(base_directory, "concatenated.json")
-processed_file_path = os.path.join(base_directory, "processed.json")
+concatenated_file_path = os.path.join(output_directory, "concatenated.json")
 query_parts_of_speech_json_path = os.path.join(base_directory, "Query Parts of Speech.json")
 flashcards_xlsb_path = os.path.join(base_directory, "Flashcards.xlsb")
 
@@ -48,90 +45,68 @@ logging.info("Script started")
 logging.info(f"Mode: {mode}")
 
 
-def handle_cutoffs(query, part_of_speech):
+def fetch_and_concatenate():
     """
-    Handles cutoff logic for verbs, adverbs, and unclassified words.
+    Fetches data from the PONS API for each query term and concatenates all results into a single JSON file.
+    """
+    concatenated_data = []
+
+    with open(input_file_path, 'r', encoding='utf-8') as file:
+        for line in file:
+            query_term = line.strip()
+            if query_term:
+                url = f"https://api.pons.com/v1/dictionary?q={query_term}&l=bgen"
+                headers = {
+                    "X-Secret": "XXX"
+                }
+                response = requests.get(url, headers=headers)
+
+                if response.status_code == 200:
+                    concatenated_data.append({
+                        "query": query_term,
+                        "data": response.json()
+                    })
+                else:
+                    concatenated_data.append({
+                        "query": query_term,
+                        "data": {
+                            "error": f"Received status code {response.status_code}",
+                            "response_text": response.text
+                        }
+                    })
+
+    # Save the concatenated data to a single JSON file
+    with open(concatenated_file_path, 'w', encoding='utf-8') as output_file:
+        json.dump(concatenated_data, output_file, ensure_ascii=False, indent=4)
+
+    print(f"All data fetched and concatenated into {concatenated_file_path}")
+
+
+def extract_patterns(text, patterns):
+    """
+    Extracts patterns from the given text using regular expressions.
 
     Args:
-        query (str): The original query.
-        part_of_speech (str): The part of speech of the query.
+        text (str): The text to search for patterns.
+        patterns (dict): A dictionary of patterns and associated functions.
 
     Returns:
-        tuple: Revised query, cutoff type, and cutoff applied.
+        dict: A dictionary with extracted data and the remaining text.
     """
-    revised_query = ""
-    cutoff_type = ""
-    cutoff_applied = ""
-
-    if part_of_speech == "Verb":
-        for cutoff in cutoff_strings:
-            if query.endswith(cutoff):
-                revised_query = query[: -len(cutoff)].strip()
-                cutoff_type = "Verb Cutoff"
-                cutoff_applied = cutoff
-                break
-    elif part_of_speech in ["Adverb", "Unclassified Word"]:
-        if query.endswith("ено"):
-            revised_query = re.sub(r"ено$", "ен", query)
-            cutoff_type = "Adverb Modification"
-            cutoff_applied = "ено → ен"
-        elif query.endswith("но"):
-            revised_query = re.sub(r"но$", "ен", query)
-            cutoff_type = "Adverb Modification"
-            cutoff_applied = "но → ен"
-        elif query.endswith("о"):
-            revised_query = re.sub(r"о$", "ен", query)
-            cutoff_type = "Adverb Modification"
-            cutoff_applied = "о → ен"
-
-    return revised_query, cutoff_type, cutoff_applied
+    result = {}
+    for key, (pattern, func) in patterns.items():
+        match = re.search(pattern, text)
+        if match:
+            result[key] = func(match)
+            text = re.sub(pattern, '', text)
+    result['text'] = text.strip()
+    return result
 
 
-def process_entries():
+def process_and_reconcile():
     """
-    Processes entries from concatenated.json to generate a processed.json file.
-    This includes filtering and enriching data as needed.
-    """
-    if not os.path.exists(concatenated_file_path):
-        print(f"Concatenated JSON file not found at {concatenated_file_path}. Please run 'fetch' mode first.")
-        return
-
-    try:
-        # Load concatenated.json
-        with open(concatenated_file_path, 'r', encoding='utf-8') as file:
-            concatenated_data = json.load(file)
-
-        processed_data = []
-
-        # Process each entry in concatenated.json
-        for entry in concatenated_data:
-            query = entry.get("query", "").strip()
-            data = entry.get("data", {})
-            revised_query, cutoff_type, cutoff_applied = handle_cutoffs(query, "Adverb")  # Example logic
-
-            processed_entry = {
-                "query": query,
-                "data": data,
-                "revised_query": revised_query,
-                "cutoff_type": cutoff_type,
-                "cutoff_applied": cutoff_applied
-            }
-            processed_data.append(processed_entry)
-
-        # Save the processed data to processed.json
-        with open(processed_file_path, 'w', encoding='utf-8') as file:
-            json.dump(processed_data, file, ensure_ascii=False, indent=4)
-
-        print(f"Processing completed. Results saved to {processed_file_path}")
-
-    except Exception as e:
-        print(f"An error occurred during processing: {e}")
-
-
-def reconcile_entries():
-    """
-    Reconciles entries between Flashcards.xlsb and concatenated.json.
-    Processes 'Bulgarian 1' and 'Bulgarian 2' independently.
+    Processes entries from concatenated.json, reconciles them with Flashcards.xlsb,
+    and saves the combined results into the 'processed' tab of Flashcards.xlsb.
     """
     if not os.path.exists(concatenated_file_path):
         print(f"Concatenated JSON file not found at {concatenated_file_path}. Please run 'fetch' mode first.")
@@ -146,107 +121,99 @@ def reconcile_entries():
         with open(concatenated_file_path, 'r', encoding='utf-8') as file:
             concatenated_data = json.load(file)
 
-        # Load the "Anki" table from Flashcards.xlsb
-        anki_data = load_anki_table_from_xlsb(flashcards_xlsb_path)
+        processed_data = []
 
-        # Prepare reconciliation results
-        results = []
+        # Process each language entry in the concatenated data
+        for lang_entry in concatenated_data:
+            lang_data = {
+                "lang": lang_entry.get("lang", ""),
+                "hits": []
+            }
 
-        for row in anki_data:
-            note_id = row.get("Note ID", "").strip() if row.get("Note ID") else ""
-            bulgarian_1 = row.get("Bulgarian 1", "").strip() if row.get("Bulgarian 1") else ""
-            bulgarian_2 = row.get("Bulgarian 2", "").strip() if row.get("Bulgarian 2") else ""
-            part_of_speech = row.get("Part of Speech", "").strip() if row.get("Part of Speech") else ""
+            for hit in lang_entry.get('data', {}).get('hits', []):
+                hit_data = {
+                    "type": hit.get("type", ""),
+                    "opendict": hit.get("opendict", False),
+                    "roms": []
+                }
 
-            # Process Bulgarian 1
-            bulgarian_1_status = process_bulgarian_field(bulgarian_1, concatenated_data)
+                for rom in hit.get('roms', []):
+                    rom_data = {
+                        "headword": rom.get("headword", ""),
+                        "headword_full": rom.get("headword_full", ""),
+                        "wordclass": rom.get("wordclass", ""),
+                        "conjugation": "",
+                        "verbclass": "",
+                        "arabs": []
+                    }
 
-            # Process Bulgarian 2
-            bulgarian_2_status = process_bulgarian_field(bulgarian_2, concatenated_data)
+                    # Extract conjugation and verbclass from headword_full
+                    headword_full = rom.get('headword_full', '')
+                    patterns = {
+                        'conjugation': (r'<span class=\\?"conjugation\\?"><acronym title=\\?"([^<][a-z ]+)\\?">[^<][a-z]+</acronym></span>', lambda match: match.group(1)),
+                        'verbclass': (r'<span class=\\?"verbclass\\?"><acronym title=\\?"([^<][a-zA-Z ]+)\\?">[^<][a-z]+</acronym></span>', lambda match: match.group(1))
+                    }
 
-            # Append results
-            results.append([
-                note_id, bulgarian_1, bulgarian_1_status, bulgarian_2, bulgarian_2_status, part_of_speech
-            ])
+                    extracted_data = extract_patterns(headword_full, patterns)
+                    rom_data.update(extracted_data)
+                    rom_data['headword_full'] = extracted_data['text']
 
-        # Finalize and save results
-        save_reconciliation_results(results)
+                    for arab in rom.get('arabs', []):
+                        arab_data = {
+                            "header": arab.get("header", ""),
+                            "sense": "",
+                            "entrynumber": "",
+                            "reflection": "",
+                            "translations": []
+                        }
+
+                        # Extract sense, entrynumber, and reflection from header
+                        header = arab.get('header', '')
+                        patterns = {
+                            'entrynumber': (r'^\d\.', lambda match: match.group(0)),
+                            'sense': (r'<span class=\\?"sense\\?">\(?(.*?)\)?</span>', lambda match: match.group(1)),
+                            'reflection': (r'<span class=\\?"reflection\\?">\(?(.*?)\)?</span>', lambda match: match.group(1))
+                        }
+
+                        extracted_data = extract_patterns(header, patterns)
+                        arab_data.update(extracted_data)
+                        arab_data['header'] = extracted_data['text']
+
+                        # Filter and add translations
+                        for translation in arab.get('translations', []):
+                            translation_data = {
+                                "source": translation.get("source", ""),
+                                "target": translation.get("target", "")
+                            }
+
+                            extracted_data = extract_patterns(translation_data['source'], patterns)
+                            translation_data.update(extracted_data)
+                            translation_data['source'] = extracted_data['text']
+
+                            arab_data['translations'].append(translation_data)
+
+                        rom_data["arabs"].append(arab_data)
+
+                    hit_data["roms"].append(rom_data)
+                lang_data["hits"].append(hit_data)
+
+            processed_data.append(lang_data)
+
+        # Save the processed data (optional or for further reconciliation)
+        with open(concatenated_file_path.replace('.json', '_processed.json'), 'w', encoding='utf-8') as output_file:
+            json.dump(processed_data, output_file, ensure_ascii=False, indent=4)
+
+        print(f"Processing and reconciliation completed. Processed data saved.")
 
     except Exception as e:
         print(f"An error occurred: {e}")
 
 
-def process_bulgarian_field(bulgarian_field, concatenated_data):
-    """
-    Processes a single Bulgarian field (Bulgarian 1 or Bulgarian 2).
-    Checks its presence and status in concatenated.json.
-    """
-    if not bulgarian_field:
-        return "Missing"
-
-    # Search for the query in concatenated.json
-    concatenated_entry = next((item for item in concatenated_data if item.get("query") == bulgarian_field), None)
-
-    if not concatenated_entry:
-        return "Missing"
-
-    # Check the contents of the data field
-    data = concatenated_entry.get("data", {})
-    if isinstance(data, dict):
-        if data.get("error") == "Received status code 204":
-            return "Not Found"
-    elif isinstance(data, list):
-        hits = [item.get("hits", []) for item in data]
-        if not any(hits):  # No hits at all
-            return "No Headword"
-        if any("roms" in hit for sublist in hits for hit in sublist):
-            return "Found"
-
-    return "No Headword"
-
-
-def save_reconciliation_results(results):
-    """
-    Saves reconciliation results to the 'rec_results' tab of the existing Flashcards.xlsb file.
-
-    Args:
-        results (list): The reconciliation results.
-    """
-    try:
-        # Load the existing workbook
-        workbook = load_workbook(flashcards_xlsb_path)
-
-        # Check if the 'rec_results' sheet exists, and remove it to replace with the new data
-        if 'rec_results' in workbook.sheetnames:
-            del workbook['rec_results']
-
-        # Create a new sheet named 'rec_results'
-        sheet = workbook.create_sheet('rec_results')
-
-        # Write headers
-        headers = [
-            "Note ID", "Bulgarian 1", "Bulgarian 1 Status",
-            "Bulgarian 2", "Bulgarian 2 Status", "Part of Speech"
-        ]
-        sheet.append(headers)
-
-        # Write data
-        for row in results:
-            sheet.append(row)
-
-        # Save the workbook back to the same file
-        workbook.save(flashcards_xlsb_path)
-        print(f"Reconciliation completed. Results saved to the 'rec_results' tab in {flashcards_xlsb_path}")
-
-    except IOError as e:
-        print(f"Error writing reconciliation results to '{flashcards_xlsb_path}': {e}")
-
-
 # Main workflow logic
-if mode == "reconcile":
-    reconcile_entries()
+if mode == "fetch":
+    fetch_and_concatenate()
 elif mode == "process":
-    process_entries()
+    process_and_reconcile()
 else:
     print(f"Unknown mode: {mode}")
-    print("Available modes: fetch, process, reconcile")
+    print("Available modes: fetch, process")
