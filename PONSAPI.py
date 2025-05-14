@@ -7,7 +7,7 @@ import json
 import logging
 from datetime import datetime
 from collections import Counter
-from openpyxl import load_workbook
+from pyxlsb import open_workbook
 
 # Selector to choose the function to run
 # Options: "fetch", "process"
@@ -170,19 +170,20 @@ def process_and_reconcile():
         with open(concatenated_file_path, 'r', encoding='utf-8') as file:
             concatenated_data = json.load(file)
 
-        logging.info("Loading Flashcards.xlsb workbook.")
-        workbook = load_workbook(flashcards_xlsb_path)
-        anki_sheet = workbook["Anki"]
-
-        logging.info("Collecting data from Anki worksheet.")
-        anki_data = []
-        for row in anki_sheet.iter_rows(min_row=2, values_only=True):  # Skip header row
-            anki_data.append({
-                "Bulgarian 1": row[0],
-                "Bulgarian 2": row[1],
-                "Part of Speech": row[2],
-                "Note ID": row[3]
-            })
+        logging.info("Loading Flashcards.xlsb workbook using pyxlsb.")
+        with open_workbook(flashcards_xlsb_path) as wb:
+            with wb.get_sheet("Anki") as sheet:
+                anki_data = []
+                for row in sheet.rows():
+                    # Skip the header row
+                    if row[0].v == "Bulgarian 1":
+                        continue
+                    anki_data.append({
+                        "Bulgarian 1": row[0].v,
+                        "Bulgarian 2": row[1].v,
+                        "Part of Speech": row[2].v,
+                        "Note ID": row[3].v
+                    })
         logging.debug(f"Collected {len(anki_data)} rows from Anki worksheet.")
 
         results = []
@@ -218,24 +219,10 @@ def process_and_reconcile():
                             pons_status_2 = "Wordclass Match"
                             break
 
-                # Additional levels of matching...
+        logging.debug(f"Result appended for Bulgarian 1: {bulgarian_1}")
 
-            # Add result to the final list
-            results.append([
-                bulgarian_1,
-                match_level,
-                matched_value,
-                cutoff_applied,
-                hint_1,
-                hint_2,
-                pons_status_1,
-                pons_status_2
-            ])
-            logging.debug(f"Result appended for Bulgarian 1: {bulgarian_1}")
-
-        # Save results to workbook
-        logging.info("Saving results to workbook.")
-        # Implementation for saving results...
+        # Save results (modify to save back to .xlsb if needed)
+        # Example: Save results to a JSON file or another supported format.
 
     except Exception as e:
         logging.error(f"An error occurred: {e}")
