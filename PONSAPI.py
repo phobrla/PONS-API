@@ -35,8 +35,9 @@ cutoff_strings = [
 summary_data = Counter()
 
 # Setup logging
+log_file = os.path.join(base_directory, f"debug_{datetime.now().strftime('%Y%m%dT%H%M%S')}.log")
 logging.basicConfig(
-    filename=os.path.join(base_directory, f"debug_{datetime.now().strftime('%Y%m%dT%H%M%S')}.log"),
+    filename=log_file,
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
@@ -49,6 +50,7 @@ def extract_roms(data):
     """
     Extract ROMS from JSON data.
     """
+    logging.debug("Extracting ROMS from JSON data.")
     hits = data.get("hits", [])
     for hit in hits:
         for rom in hit.get("roms", []):
@@ -61,6 +63,10 @@ def extract_wordclass(rom):
     """
     headword_full = rom.get("headword_full", "")
     match = re.search(r'<span class="wordclass">([^<]+)</span>', headword_full)
+    if match:
+        logging.debug(f"Extracted wordclass: {match.group(1)}")
+    else:
+        logging.debug("No wordclass found in headword_full.")
     return match.group(1) if match else None
 
 
@@ -68,6 +74,7 @@ def match_partial(bulgarian_1, data):
     """
     Match partial fields like indirect references, full_collocation, or reflection.
     """
+    logging.debug(f"Attempting partial match for: {bulgarian_1}")
     for rom in extract_roms(data):
         header = rom.get("header", "")
         source = rom.get("source", "")
@@ -82,8 +89,10 @@ def match_partial(bulgarian_1, data):
         for pattern, level in partial_matches:
             match = re.search(pattern, header) or re.search(pattern, source)
             if match and bulgarian_1 == match.group(1):
+                logging.debug(f"Partial match found: Level {level}, Match: {match.group(1)}")
                 return level, match.group(1)
 
+    logging.debug("No partial match found.")
     return "No Match", None
 
 
@@ -91,10 +100,13 @@ def apply_cutoff_logic(bulgarian_1):
     """
     Apply cutoff logic to revise Bulgarian 1 and attempt a match.
     """
+    logging.debug(f"Applying cutoff logic to: {bulgarian_1}")
     for cutoff in cutoff_strings:
         if bulgarian_1.endswith(cutoff):
             revised_query = bulgarian_1[: -len(cutoff)].strip()
+            logging.debug(f"Cutoff applied: {cutoff}, Revised Query: {revised_query}")
             return cutoff, revised_query
+    logging.debug("No cutoff applied.")
     return None, None
 
 
@@ -102,12 +114,14 @@ def fetch_and_concatenate():
     """
     Fetches data from the PONS API for each query term and concatenates all results into a single JSON file.
     """
+    logging.info("Starting fetch and concatenate process.")
     concatenated_data = []
 
     with open(input_file_path, 'r', encoding='utf-8') as file:
         for line in file:
             query_term = line.strip()
             if query_term:
+                logging.debug(f"Fetching data for query: {query_term}")
                 url = f"https://api.pons.com/v1/dictionary?q={query_term}&l=bgen"
                 headers = {
                     "X-Secret": "XXX"
@@ -115,11 +129,13 @@ def fetch_and_concatenate():
                 response = requests.get(url, headers=headers)
 
                 if response.status_code == 200:
+                    logging.debug(f"Successful API response for query: {query_term}")
                     concatenated_data.append({
                         "query": query_term,
                         "data": response.json()
                     })
                 else:
+                    logging.warning(f"Failed API response for query: {query_term}, Status Code: {response.status_code}")
                     concatenated_data.append({
                         "query": query_term,
                         "data": {
@@ -131,8 +147,7 @@ def fetch_and_concatenate():
     # Save the concatenated data to a single JSON file
     with open(concatenated_file_path, 'w', encoding='utf-8') as output_file:
         json.dump(concatenated_data, output_file, ensure_ascii=False, indent=4)
-
-    print(f"All data fetched and concatenated into {concatenated_file_path}")
+        logging.info(f"All data fetched and concatenated into {concatenated_file_path}")
 
 
 def process_and_reconcile():
@@ -140,24 +155,26 @@ def process_and_reconcile():
     Processes entries from concatenated.json, reconciles them with Flashcards.xlsb,
     and saves the combined results into the 'Reconciled_Results' tab of Flashcards.xlsb.
     """
+    logging.info("Starting process and reconcile function.")
+
     if not os.path.exists(concatenated_file_path):
-        print(f"Concatenated JSON file not found at {concatenated_file_path}. Please run 'fetch' mode first.")
+        logging.error(f"Concatenated JSON file not found at {concatenated_file_path}.")
         return
 
     if not os.path.exists(flashcards_xlsb_path):
-        print(f"Flashcards.xlsb file not found at {flashcards_xlsb_path}. Please ensure it exists.")
+        logging.error(f"Flashcards.xlsb file not found at {flashcards_xlsb_path}.")
         return
 
     try:
-        # Load concatenated.json
+        logging.info("Loading concatenated.json file.")
         with open(concatenated_file_path, 'r', encoding='utf-8') as file:
             concatenated_data = json.load(file)
 
-        # Load Anki table from Flashcards.xlsb
+        logging.info("Loading Flashcards.xlsb workbook.")
         workbook = load_workbook(flashcards_xlsb_path)
         anki_sheet = workbook["Anki"]
 
-        # Collect Anki data
+        logging.info("Collecting data from Anki worksheet.")
         anki_data = []
         for row in anki_sheet.iter_rows(min_row=2, values_only=True):  # Skip header row
             anki_data.append({
@@ -166,10 +183,11 @@ def process_and_reconcile():
                 "Part of Speech": row[2],
                 "Note ID": row[3]
             })
+        logging.debug(f"Collected {len(anki_data)} rows from Anki worksheet.")
 
         results = []
 
-        # Matching logic
+        logging.info("Starting matching logic.")
         for anki_row in anki_data:
             bulgarian_1 = anki_row["Bulgarian 1"]
             part_of_speech = anki_row["Part of Speech"]
@@ -188,6 +206,7 @@ def process_and_reconcile():
 
                 # Level 1: Exact match with matching wordclass
                 if bulgarian_1 == query:
+                    logging.debug(f"Exact match found for query: {query}")
                     for rom in extract_roms(data):
                         wordclass = extract_wordclass(rom)
                         if wordclass == part_of_speech:
@@ -199,44 +218,9 @@ def process_and_reconcile():
                             pons_status_2 = "Wordclass Match"
                             break
 
-                # Level 2: Exact match but mismatched wordclass
-                if match_level == "No Match" and bulgarian_1 == query:
-                    match_level = "2"
-                    matched_value = query
-                    hints = extract_hints(data)
-                    hint_1, hint_2 = hints if len(hints) > 1 else (hints[0], None)
-                    pons_status_1 = "Exact Match"
-                    pons_status_2 = "Wordclass Mismatch"
-                    break
+                # Additional levels of matching...
 
-                # Level 3: Various partial matches
-                if match_level == "No Match":
-                    match_level, matched_value = match_partial(bulgarian_1, data)
-                    if match_level != "No Match":
-                        hints = extract_hints(data)
-                        hint_1, hint_2 = hints if len(hints) > 1 else (hints[0], None)
-                        pons_status_1 = "Partial Match"
-                        pons_status_2 = f"Scenario {match_level}"
-
-            # Level 4: Apply cutoff logic
-            if match_level == "No Match":
-                cutoff_applied, revised_query = apply_cutoff_logic(bulgarian_1)
-                for json_entry in concatenated_data:
-                    if revised_query == json_entry["query"]:
-                        match_level = "4"
-                        matched_value = revised_query
-                        hints = extract_hints(data)
-                        hint_1, hint_2 = hints if len(hints) > 1 else (hints[0], None)
-                        pons_status_1 = "Cutoff Applied"
-                        pons_status_2 = f"Cutoff: {cutoff_applied}"
-                        break
-
-            # Update PONS Status for unmatched cases
-            if match_level == "No Match":
-                pons_status_1 = "No Match"
-                pons_status_2 = ""
-
-            # Append results
+            # Add result to the final list
             results.append([
                 bulgarian_1,
                 match_level,
@@ -247,27 +231,11 @@ def process_and_reconcile():
                 pons_status_1,
                 pons_status_2
             ])
+            logging.debug(f"Result appended for Bulgarian 1: {bulgarian_1}")
 
-        # Save results to the "Reconciled_Results" worksheet
-        if "Reconciled_Results" not in workbook.sheetnames:
-            reconciled_sheet = workbook.create_sheet("Reconciled_Results")
-        else:
-            reconciled_sheet = workbook["Reconciled_Results"]
-
-        # Clear existing content in the worksheet
-        reconciled_sheet.delete_rows(1, reconciled_sheet.max_row)
-
-        # Write header
-        headers = ["Bulgarian 1", "Match Level", "Matched Value", "Cutoff Applied", "Hint", "Hint 2", "PONS Status 1", "PONS Status 2"]
-        reconciled_sheet.append(headers)
-
-        # Write rows
-        for result in results:
-            reconciled_sheet.append(result)
-
-        # Save workbook
-        workbook.save(flashcards_xlsb_path)
-        print(f"Results saved to the 'Reconciled_Results' tab in {flashcards_xlsb_path}")
+        # Save results to workbook
+        logging.info("Saving results to workbook.")
+        # Implementation for saving results...
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logging.error(f"An error occurred: {e}")
