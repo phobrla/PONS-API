@@ -239,3 +239,14 @@ def process_and_reconcile():
 
     except Exception as e:
         logging.error(f"An error occurred: {e}")
+
+
+# Main workflow
+if mode == "fetch":
+    fetch_and_concatenate()
+elif mode == "process":
+    process_and_reconcile()
+else:
+    logging.error(f"Unknown mode: {mode}")
+    print(f"Unknown mode: {mode}")
+    print("Available modes: fetch, process")
