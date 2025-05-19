@@ -15,6 +15,86 @@ PONSAPI is a Python utility for automating the reconciliation of Bulgarian vocab
 
 ---
 
+## Code Structure & Detailed Workflow
+
+This section explains the inner workings of `PONSAPI.py` in detail, combining a step-by-step pseudocode walkthrough with explanations of the main components.
+
+1. **Initialization**
+    - Import standard and third-party Python libraries.
+    - Define all file paths and directories (base_directory, input, output, .xlsb, etc.).
+    - Configure logging (timestamped file, DEBUG level).
+    - Define constants, e.g., cutoff strings for matching logic.
+
+2. **Select Mode**
+    - Set the `mode` variable at the top of the script ("fetch" or "process").
+
+3. **Fetch Mode (`mode == "fetch"`)**
+    1. Open `Inputs_for_PONS_API.txt` for reading.
+    2. For each line (term) in the file:
+        - Strip whitespace.
+        - Skip empty terms.
+        - Build the PONS API request URL with the term.
+        - Set required headers (including your API key).
+        - Send HTTP GET request to the PONS API.
+        - If the response is HTTP 200:
+            - Parse the JSON response.
+            - Append a `{"query": term, "data": JSON}` object to a results list.
+        - If there is an error:
+            - Append `{"query": term, "data": {"error": ..., "response_text": ...}}` to the results list.
+        - Log progress, especially on errors or large batches.
+    3. After all terms are processed:
+        - Write the results list as `concatenated.json` to the output directory.
+        - Log completion of "fetch" mode.
+
+4. **Process Mode (`mode == "process"`)**
+    1. Open `concatenated.json` and parse all API results into memory.
+    2. Open `Flashcards.xlsb` using `pyxlsb` (read-only).
+        - Read the "Anki" worksheet row by row.
+        - For each row (skip header), build a dictionary with fields like "Bulgarian 1", "Bulgarian 2", "Part of Speech", and "Note ID".
+        - Store all flashcards in a list.
+        - Log the number of flashcards loaded.
+    3. For each flashcard in the list:
+        - Extract the values for "Bulgarian 1" and "Part of Speech" (and others as needed).
+        - Initialize variables for match status, hints, etc.
+        - For each entry in `concatenated.json`:
+            - Extract the query term and PONS data.
+            - **Matching Logic:** Try each level in order (stop after the first match):
+                1. **Level 1:** Check if flashcard term equals query term **and** part of speech matches.
+                    - If so, record as Level 1 match, extract possible hints, break loop.
+                2. **Level 2:** If not matched, check if flashcard term equals query term (ignore part of speech).
+                    - If so, record as Level 2 match, extract hints, break loop.
+                3. **Level 3:** If not matched, try partial matching (look for collocations, indirect references, reflections, etc. in the PONS JSON).
+                    - If found, record as Level 3 match, extract hints, break loop.
+                4. **Level 4:** If not matched, apply cutoff logic:
+                    - For each cutoff string (e.g., " се", " си", etc.):
+                        - If the flashcard term ends with a cutoff, remove it and retry Levels 1–3 with the revised term.
+                        - If matched, record as Level 4 match, extract hints, break loop.
+                5. If still no match, record as unmatched.
+            - Log which level was matched, what hints were found, and any notes (e.g., cutoff applied).
+        - Repeat for the next flashcard.
+    4. After all flashcards are processed:
+        - Log summary statistics (number of matches at each level, unmatched cards, etc.).
+        - Optionally, write results to a file (logs by default; can be extended to CSV/XLSX).
+
+5. **Unknown Mode**
+    - If the mode is not recognized, log an error.
+
+6. **End Script**
+
+**Key Functions:**
+- `fetch_and_concatenate()`: Handles all API fetching and concatenation into a single JSON file.
+- `process_and_reconcile()`: Handles all logic for matching flashcards with API data.
+- `extract_roms()`, `extract_wordclass()`, `match_partial()`, `apply_cutoff_logic()`: Helpers for parsing and matching.
+
+**Notes on Extending:**
+- To write results back to Excel, export to `.xlsx` and use `openpyxl`.
+- To support more advanced Unicode or error handling, extend the relevant I/O sections.
+- To speed up API calls, consider batching or async requests.
+
+*For details on things that do not work or should be avoided, see the “Things That Don’t Work” section below.*
+
+---
+
 ## Requirements
 
 - Python 3.7+
@@ -122,13 +202,56 @@ All matching steps are logged for transparency.
 
 ---
 
+## Things That Don’t Work
+
+This section documents approaches and coding attempts that were tried in this project but **did not work**. These notes are here to remind me never to return to these methods or patterns.
+
+- **Using openpyxl with `.xlsb` files:**  
+  *openpyxl* does **not** support reading or writing Excel binary workbook files (`.xlsb`). Attempts to use openpyxl led to errors like  
+  `openpyxl does not support binary format .xlsb, please convert this file to .xlsx format if you want to open it with openpyxl`.  
+  **Never use openpyxl with .xlsb. Use pyxlsb for reading .xlsb files.**
+
+- **Writing back to `.xlsb` files**:  
+  There is **no reliable library** in Python for writing data back to `.xlsb` files. pyxlsb can only read. Attempts to write results to `.xlsb` failed or resulted in corrupted files.  
+  **Do not attempt to write to .xlsb. If output to Excel is required, convert to `.xlsx` and use openpyxl or another suitable library.**
+
+- **Mixing openpyxl and pyxlsb in the same workflow:**  
+  Trying to use both libraries for the same file or in the same read/write loop leads to confusion and errors, especially regarding file handles and memory.  
+  **Stick to one library per file and workflow.**
+
+- **Expecting pyxlsb to handle formulas, formatting, or anything but basic values:**  
+  pyxlsb is limited to extracting cell values only. It does **not** support writing, nor does it preserve formatting or formulas.  
+  **Do not rely on pyxlsb for anything except simple cell value reads.**
+
+- **Naive Unicode/encoding handling for large `.xlsb` or text files:**  
+  Not explicitly specifying encoding or not handling Unicode issues caused failures on non-ASCII flashcards or API results.  
+  **Always use UTF-8 and handle decoding errors as needed.**
+
+- **Sequential API fetching for very large input lists:**  
+  Fetching thousands of terms from the PONS API sequentially without batching or rate-limiting can be extremely slow and/or lead to throttling.  
+  **Don’t fetch large lists in one go without considering batching or respecting API limits.**
+
+- **Assuming API or Excel column order is fixed:**  
+  Hard-coding column indices led to mismatches when the underlying Excel schema changed.  
+  **Always verify header rows and use header names, not indices.**
+
+- **Saving results only to logs:**  
+  Relying solely on logs for output made it hard to analyze or use results programmatically.  
+  **Always build an explicit export step (CSV, XLSX, or JSON) for results.**
+
+---
+
+*This section is a living document. If you try something and it fails, document it here so you won’t repeat past mistakes!*
+
+---
+
 ## Troubleshooting
 
 - **No output or only a few log lines?**
   - Check that your input files exist at the specified paths.
   - Inspect the log file for any errors.
 - **openpyxl error about .xlsb?**
-  - This script uses `pyxlsb` and does not require `.xlsx` conversion.
+  - This script uses `pyxlsb` and does not require `.xlsx` conversion for reading.
 - **API errors?**
   - Make sure your PONS API key is valid and not rate-limited.
 - **Performance issues?**
