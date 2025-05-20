@@ -174,28 +174,29 @@ This section explains the inner workings of `PONSAPI.py` in detail, combining a 
 
 ---
 
-# Regex for Matching Conjugation `<span>` Patterns
+## Regex and HTML Extraction Reference
+
+This section contains all reference material and examples for regexes, HTML parsing/extraction, and data mapping related to the PONSAPI workflow.
+
+---
+
+### Regex for Matching Conjugation `<span>` Patterns
 
 This regex matches either of these two HTML patterns and captures the aspect as a group:
 
 - `<span class="conjugation"><acronym title="imperfective form">imperf</acronym></span>`
 - `<span class="conjugation"><acronym title="perfective form">perf</acronym></span>`
 
-## Regex
-
+**Regex:**
 ```regex
 <span class="conjugation"><acronym title="(imperfective form|perfective form)">(imperf|perf)</acronym></span>
 ```
 
-### Capturing Groups
+**Capturing Groups:**
+1. Aspect string – `imperfective form` or `perfective form`
+2. Abbreviation – `imperf` or `perf`
 
-1. **First group**: Captures the aspect string – either `imperfective form` or `perfective form`.
-2. **Second group**: Captures the abbreviation – either `imperf` or `perf`.
-
-## Usage Example
-
-You can use this regex in most languages with minor adjustments for escaping if needed. For example, in Python:
-
+**Example (Python):**
 ```python
 import re
 
@@ -210,186 +211,61 @@ if match:
 
 ---
 
-## Regex to Find `<span>` Elements with Multiple `<acronym>` Tags
-
-This document explains how to use a regex to find HTML `<span>` elements that contain more than one `<acronym>` tag, and demonstrates correct and incorrect matches.
-
----
-
-### Regex Pattern
+### Regex to Find `<span>` Elements with Multiple `<acronym>` Tags
 
 ```regex
 <span\b[^>]*>(?:[^<]*<acronym\b[^>]*>.*?<\/acronym>[^<]*){2,}<\/span>
 ```
-
-#### Explanation
-
-- `<span\b[^>]*>`  
-  Matches the opening `<span>` tag with optional attributes.
-
-- `(?:[^<]*<acronym\b[^>]*>.*?<\/acronym>[^<]*){2,}`  
-  Non-capturing group to match at least two `<acronym>` tags (and their content) within the same `<span>`.  
-  - `[^<]*` matches any non-tag text between tags.
-  - `<acronym\b[^>]*>` matches the opening `<acronym>` tag with optional attributes.
-  - `.*?<\/acronym>` matches the content and the closing `</acronym>` tag.
-
-- `<\/span>`  
-  Matches the closing `</span>` tag.
+- Matches `<span>` elements containing two or more `<acronym>` tags (and their contents).
+- Does **not** match `<span>` elements with only one or zero `<acronym>` tags.
 
 ---
 
-### Example Usage in Python
+### Regex for Matching Span and Acronym Patterns
 
-```python
-import re
-
-html = '''
-<span class="rhetoric"><acronym title="също">и</acronym> <acronym title="figurative">fig</acronym></span>
-<span class="wordclass"><acronym title="adjective">ADJ</acronym></span>
-<span class="topic"><acronym title="technology">TECH</acronym>, <acronym title="computing">COMPUT</acronym></span>
-<span class="flexion">&lt;-ът&gt;</span>
-'''
-
-pattern = r'<span\b[^>]*>(?:[^<]*<acronym\b[^>]*>.*?<\/acronym>[^<]*){2,}<\/span>'
-
-matches = re.findall(pattern, html, re.DOTALL)
-for match in matches:
-    print(match)
-```
-
----
-
-### Correct Match Example
-
-```html
-<span class="rhetoric"><acronym title="също">и</acronym> <acronym title="figurative">fig</acronym></span>
-```
-
----
-
-### Incorrect Match Examples (these will **not** match)
-
-```html
-<span class="wordclass"><acronym title="adjective">ADJ</acronym></span>
-<span class="genus"><acronym title="masculine">m</acronym></span>
-<span class="flexion">&lt;-ът&gt;</span>
-```
-
----
-
-### Additional Notes
-
-- The regex will **not match** `<span>` elements that contain only one or zero `<acronym>` tags.
-- It is robust against unrelated `<span>` tags in the same HTML block.
-- For complex or malformed HTML, consider using an HTML parser (like BeautifulSoup in Python) for greater accuracy.
-
----
-
-## Regex for Matching Span and Acronym Patterns
-
-This regex is designed to match the following HTML patterns (with double backslashes for escaping):
-
-- `<span class=\"info\">SomeText</span> / <span class=\"other\">OtherText</span>`
-- `<span class=\"info\"><acronym title=\"също\">и</acronym></span> / <span class=\"info\"><acronym title=\"...\">...</acronym></span>`
-
-### Pattern
+This regex matches both plain text and acronym-containing spans, especially in pairs divided by `/`.
 
 ```regex
 <span class=\\\"info\\\">(?:[^<]+|<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>)</span> ?/ ?<span class=\\\"[^<]*\\\">(?:[^<]*|<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>)</span>
 ```
 
-### Explanation
-
-- `<span class=\\\"info\\\">`: Matches a `<span>` tag with the class `info` (escaped).
-- `(?:[^<]+|<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>)`:
-  - `[^<]+`: Matches any text content that does not include a `<` character.
-  - `<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>`: Matches an `<acronym>` tag with a `title` attribute containing Cyrillic or Latin characters, spaces, commas, colons, backslashes, or periods, and containing Cyrillic or Latin text content.
-- `</span> ?/ ?`: Matches the closing `</span>` tag, a slash (`/`), and optional spaces.
-- `<span class=\\\"[^<]*\\\">`: Matches another `<span>` tag with any class name.
-- `(?:[^<]*|<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>)`: Matches either plain text or another `<acronym>` tag as described above.
-- `</span>`: Matches the closing `</span>` tag.
-
-### Usage
-
-- This pattern can be used to match both simple text and acronym-containing spans on either side of a `/`.
-- The double backslashes ensure compatibility with environments that require double-escaping (e.g., in a string literal in some languages or regex engines).
-
-### Example Matches
-
-- `<span class=\"info\">отр</span> / <span class=\"other\">some text</span>`
-- `<span class=\"info\"><acronym title=\"също\">и</acronym></span> / <span class=\"info\"><acronym title=\"също\">и</acronym></span>`
-
-### Notes
-
-- Adjust `[A-Za-zА-Яа-я :,\\\\.]*` for stricter or broader title attribute matching if needed.
-- This pattern is flexible for a wide range of similar HTML constructs.
-
 ---
 
-## Combined Regex Pattern
-
-You can combine the two regex patterns into one using an alternation (`|`) to account for both patterns. Here is the combined regex:
+### Combined Regex Pattern
 
 ```regex
 <span class=\\"info\\">([^<]*|<acronym title=\\"([A-Za-zА-Яа-я :,\\\\.]*)\\">[A-Za-zА-Яа-я]+</acronym>)</span>
 ```
-
-### Explanation
-
-1. **Outer `<span>` tag**: `<span class=\\"info\\">` and `</span>` are the same for both patterns.
-2. **Alternation (`|`)**:
-    - The first part matches: `[^<]*` (no `<` characters inside the span).
-    - The second part matches: `<acronym title=\\"([A-Za-zА-Яа-я :,\\\\.]*)\\">[A-Za-zА-Яа-я]+</acronym>`.
-
-This combined regex will match either of the two patterns inside the `<span>` tag.
+- Matches either plain text or an acronym-containing span for class "info".
 
 ---
 
-## HTML Acronym Regex Reference
+### HTML Acronym Regex Reference
 
 This document lists how to match specific HTML-acronym patterns in (JSON-escaped) HTML using regex.  
 For the full table of patterns and their corresponding regex, see [html-acronym-regex-reference.csv](html-acronym-regex-reference.csv).
 
 ---
 
-## Special/Combined Regex for `<span class="info">`
+### Special/Combined Regex for `<span class="info">`
 
-To match both cases where the `title` attribute is empty or filled (e.g. `или`):
+To match cases where the `title` attribute is empty or filled:
 
 ```regex
 <span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\\.]*)\">[A-Za-zА-Яа-я]+</acronym>
 ```
 
-- The `*` after the character class means it matches both empty and non-empty titles.
-
 ---
 
-## Regex to Extract "title" from `<acronym>` Tags
+### Regex to Extract "title" from `<acronym>` Tags
 
-This project provides a regular expression for extracting the content of the `title` attribute from HTML `<acronym>` tags, discarding the tags themselves and their inner content.
-
-### Purpose
-
-When processing HTML, you may want to remove `<acronym>` tags but retain only the value from their `title` attribute. This is useful for text extraction, simplifying markup, or transforming HTML for text-only outputs.
-
-### Regular Expression
+Extract the content of the `title` attribute from HTML `<acronym>` tags, discarding the tags themselves and their inner content.
 
 ```regex
 <acronym[^>]*title=["']([^"']+)["'][^>]*>.*?<\/acronym>
 ```
 
-#### How It Works
-
-- `<acronym`: Matches the start of an `<acronym>` tag.
-- `[^>]*`: Matches any tag attributes.
-- `title=["']([^"']+)["']`: Captures the value of the `title` attribute in group 1.
-- `[^>]*`: Consumes any additional attributes or spaces.
-- `>.*?<\/acronym>`: Matches the tag content and the closing `</acronym>`.
-
-### Usage Example
-
-#### Python
-
+**Python Example:**
 ```python
 import re
 
@@ -398,26 +274,11 @@ result = re.sub(r'<acronym[^>]*title=["\']([^"\']+)["\'][^>]*>.*?<\/acronym>', r
 print(result)  # Output: Example Title
 ```
 
-### Limitations
-
-- Assumes the `title` attribute is always present.
-- Does not handle nested `<acronym>` tags.
-- Not suitable for parsing ambiguous or malformed HTML. For full HTML parsing, use a dedicated HTML parser like BeautifulSoup.
-
-### License
-
-This project is provided under the MIT License.
-
 ---
 
-## Optional & Generalized Acronym Regex Patterns
+### Optional & Generalized Acronym Regex Patterns
 
-The following regex patterns match `<span>` elements with optional `<acronym>` tags inside, and can be used as generalized replacements for extracting content from various `<span>` elements with specific classes.  
-For each, the acronym is optional. The regex captures the acronym's `title` attribute and the main content within the `<span>`.  
-All other groups are non-capturing.  
-The escaped `\\"` format is retained for compatibility.
-
----
+These regex patterns match `<span>` elements with optional `<acronym>` tags inside and can be used as generalized replacements for extracting content from various `<span>` elements with specific classes.
 
 ```regex
 <span class=\\"conjugation\\">(?:([^<]*)|<acronym title=\\"((?:imperfective form|perfective form))\\">((?:imperf|perf))</acronym>)</span>
@@ -435,7 +296,7 @@ The escaped `\\"` format is retained for compatibility.
 <span class=\\"wordclass\\">(?:([^<]*)|<acronym title=\\"([A-Za-z ]+)\\">([A-Za-z]+)</acronym>)</span>
 ```
 
-And in a more general form (using [^<]+ for broader matching):
+And, in a more general form:
 
 ```regex
 <span class=\"conjugation\">(?:([^<]*)|<acronym title=\"([^<]+)\">([^<]+)</acronym>)</span>
@@ -461,68 +322,30 @@ And in a more general form (using [^<]+ for broader matching):
   - The first capturing group is the plain text (when no acronym is present).
   - The second capturing group is the acronym's `title` attribute (if present).
   - The third capturing group is the acronym's display text (if present).
-  - Everything else is in a non-capturing group.
-- These patterns allow you to reliably extract either the plain text or the acronym details from the HTML.
-- All character class ranges like `[А-Яа-я]+`, `[A-Za-z]+`, or `[A-Za-zА-Яа-я]+` have been replaced with `[^<]+` to match any sequence of characters that does not include the `<` character, increasing robustness and flexibility.
-- The structure of the regex for each `<span>` type remains the same; only the inner matching logic has been generalized.
+- All character class ranges like `[А-Яа-я]+`, `[A-Za-z]+`, or `[A-Za-zА-Яа-я]+` have been replaced with `[^<]+` in the generalized form for flexibility.
 
 ---
 
-## Superscript Representation Guide
+### Superscript Representation Guide
 
 This document describes how to represent superscripts such as `<sup>1</sup>`, `<sup>2</sup>`, and `<sup>3</sup>` in JSON.
 
-### Superscript HTML
-
+**Superscript HTML Example:**
 ```html
 <sup>1</sup>
 <sup>2</sup>
 <sup>3</sup>
 ```
-
-### Superscript in JSON
-
-The superscript values can be represented in JSON as follows:
-
+**Superscript in JSON:**
 ```json
 {
   "sup": ["1", "2", "3"]
-}
-```
-
-Each value in the `"sup"` array corresponds to the content inside a `<sup>` HTML tag.
-
-### Example Usage
-
-If you need to represent a series of superscript references, include them as shown above.
-
-For example, if you want to indicate that a word or phrase has three superscript references, you might include:
-
-```json
-{
-  "word": "example",
-  "sup": ["1", "2", "3"]
-}
-```
-
-### Notes
-
-- This approach is simple and extensible for any number of superscripts.
-- If you need to associate the superscript with additional information (such as footnote content), consider using an array of objects, e.g.:
-
-```json
-{
-  "superscripts": [
-    {"value": "1", "note": "First footnote"},
-    {"value": "2", "note": "Second footnote"},
-    {"value": "3", "note": "Third footnote"}
-  ]
 }
 ```
 
 ---
 
-## Acronym Conversion Reference Table
+### Acronym Conversion Reference Table
 
 See [Acronyms.json](Acronyms.json) for the complete set of conversion mappings and example JSON structures showing how `<span>` and nested `<acronym>` tags with titles and contents can be represented as JSON objects, grouped by their parent span class.
 
