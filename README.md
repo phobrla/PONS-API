@@ -20,6 +20,8 @@ PONSAPI is a Python utility for automating the reconciliation of Bulgarian vocab
 The `Flashcards.xlsb` file must contain a sheet named **"Anki"**.
 
 > **The "Anki" table contains 66 columns with the following headers (in order):**
+<details>
+<summary>Show/Hide Columns</summary>
 
 1. Note ID  
 2. Bulgarian 1  
@@ -87,6 +89,7 @@ The `Flashcards.xlsb` file must contain a sheet named **"Anki"**.
 64. Beron Status 1  
 65. Beron Status 2  
 66. Tags  
+</details>
 
 > **Note:** Some versions of the table may have more or fewer columns, but this is the standard structure expected by the script.  
 > Only a subset of these columns are used for PONSAPI’s processing and matching logic (e.g., "Bulgarian 1", "Part of Speech", etc.), but the file must include all columns for compatibility.
@@ -169,7 +172,41 @@ This section explains the inner workings of `PONSAPI.py` in detail, combining a 
 - To support more advanced Unicode or error handling, extend the relevant I/O sections.
 - To speed up API calls, consider batching or async requests.
 
-*For details on things that do not work or should be avoided, see the “Things That Don’t Work” section below.*
+---
+
+# Regex for Matching Conjugation `<span>` Patterns
+
+This regex matches either of these two HTML patterns and captures the aspect as a group:
+
+- `<span class="conjugation"><acronym title="imperfective form">imperf</acronym></span>`
+- `<span class="conjugation"><acronym title="perfective form">perf</acronym></span>`
+
+## Regex
+
+```regex
+<span class="conjugation"><acronym title="(imperfective form|perfective form)">(imperf|perf)</acronym></span>
+```
+
+### Capturing Groups
+
+1. **First group**: Captures the aspect string – either `imperfective form` or `perfective form`.
+2. **Second group**: Captures the abbreviation – either `imperf` or `perf`.
+
+## Usage Example
+
+You can use this regex in most languages with minor adjustments for escaping if needed. For example, in Python:
+
+```python
+import re
+
+pattern = r'<span class="conjugation"><acronym title="(imperfective form|perfective form)">(imperf|perf)</acronym></span>'
+text = '<span class="conjugation"><acronym title="imperfective form">imperf</acronym></span>'
+
+match = re.search(pattern, text)
+if match:
+    print("Aspect:", match.group(1))
+    print("Abbreviation:", match.group(2))
+```
 
 ---
 
@@ -311,115 +348,7 @@ This combined regex will match either of the two patterns inside the `<span>` ta
 ## HTML Acronym Regex Reference
 
 This document lists how to match specific HTML-acronym patterns in (JSON-escaped) HTML using regex.  
-For each original HTML snippet, the corresponding generalized regex is provided.
-
----
-
-| Original HTML                                                                 | Regex Pattern                                                                                         |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `<span class="conjugation"><acronym title="imperfective form">imperf</acronym>` | `<span class=\"conjugation\"><acronym title=\"([A-Za-z ]+ form)\">[A-Za-z]+</acronym>`                |
-| `<span class="conjugation"><acronym title="perfective form">perf</acronym>`     | `<span class=\"conjugation\"><acronym title=\"([A-Za-z ]+ form)\">[A-Za-z]+</acronym>`                |
-| `<span class="example"><acronym title="нещо">нщ</acronym>`                      | `<span class=\"example\"><acronym title=\"([А-Яа-я ]+)\">[А-Яа-я]+</acronym>`                         |
-| `<span class="example"><acronym title="някого">нкг</acronym>`                    | `<span class=\"example\"><acronym title=\"([А-Яа-я ]+)\">[А-Яа-я]+</acronym>`                         |
-| `<span class="example"><acronym title="някому">нкм</acronym>`                    | `<span class=\"example\"><acronym title=\"([А-Яа-я ]+)\">[А-Яа-я]+</acronym>`                         |
-| `<span class="example"><acronym title="също">и</acronym>`                        | `<span class=\"example\"><acronym title=\"([А-Яа-я ]+)\">[А-Яа-я]+</acronym>`                         |
-| `<span class="genus"><acronym title="feminine">f</acronym>`                     | `<span class=\"genus\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                           |
-| `<span class="genus"><acronym title="masculine and feminine">mf</acronym>`      | `<span class=\"genus\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                           |
-| `<span class="genus"><acronym title="masculine">m</acronym>`                    | `<span class=\"genus\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                           |
-| `<span class="genus"><acronym title="neuter">nt</acronym>`                      | `<span class=\"genus\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                           |
-| `<span class="idiom_proverb"><acronym title="нещо">нщ</acronym>`                | `<span class=\"idiom_proverb\"><acronym title=\"([А-Яа-я ]+)\">[А-Яа-я]+</acronym>`                   |
-| `<span class="idiom_proverb"><acronym title="някого">нкг</acronym>`              | `<span class=\"idiom_proverb\"><acronym title=\"([А-Яа-я ]+)\">[А-Яа-я]+</acronym>`                   |
-| `<span class="idiom_proverb"><acronym title="също">и</acronym>`                  | `<span class=\"idiom_proverb\"><acronym title=\"([А-Яа-я ]+)\">[А-Яа-я]+</acronym>`                   |
-| `<span class="info"><acronym title="">или</acronym>`                            | `<span class=\"info\"><acronym title=\"\">или</acronym>`                                              |
-| `<span class="info"><acronym title="абревиатура на">abbrev of</acronym>`        | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="accusative">acc</acronym>`                  | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="countable">count:</acronym>`                | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="dative">dat</acronym>`                      | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="no plural">no pl</acronym>`                 | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="usually">usu</acronym>`                     | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="виж">вж.</acronym>`                         | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="множествено число">pl</acronym>`            | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="множествено число">мн</acronym>`            | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="info"><acronym title="също">и</acronym>`                          | `<span class=\"info\"><acronym title=\"([A-Za-zА-Яа-я :,\.]*)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="number"><acronym title="plural">pl</acronym>`                     | `<span class=\"number\"><acronym title=\"([A-Za-z]+)\">[A-Za-z]+</acronym>`                          |
-| `<span class="or"><acronym title="or">or</acronym>`                             | `<span class=\"or\"><acronym title=\"([A-Za-zА-Яа-я]+)\">[A-Za-zА-Яа-я\.]+</acronym>`                |
-| `<span class="or"><acronym title="или">o.</acronym>`                            | `<span class=\"or\"><acronym title=\"([A-Za-zА-Яа-я]+)\">[A-Za-zА-Яа-я\.]+</acronym>`                |
-| `<span class="reference_qualification"><acronym title="множествено число">мн</acronym>` | `<span class=\"reference_qualification\"><acronym title=\"([А-Яа-я ]+)\">[А-Яа-я]+</acronym>`        |
-| `<span class="region"><acronym title="Irish" class="Irish">Irish</acronym>`     | `<span class=\"region\"><acronym title=\"([A-Za-z]+)\" class=\"[A-Za-z]+\">[A-Za-z]+</acronym>`      |
-| `<span class="rhetoric"><acronym title="figurative">fig</acronym>`              | `<span class=\"rhetoric\"><acronym title=\"([A-Za-zА-Яа-я]+)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="rhetoric"><acronym title="ironic">iron</acronym>`                 | `<span class=\"rhetoric\"><acronym title=\"([A-Za-zА-Яа-я]+)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="rhetoric"><acronym title="pejorative">pej</acronym>`              | `<span class=\"rhetoric\"><acronym title=\"([A-Za-zА-Яа-я]+)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="rhetoric"><acronym title="proverb">prov</acronym>`                | `<span class=\"rhetoric\"><acronym title=\"([A-Za-zА-Яа-я]+)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="rhetoric"><acronym title="също">и</acronym>`                      | `<span class=\"rhetoric\"><acronym title=\"([A-Za-zА-Яа-я]+)\">[A-Za-zА-Яа-я]+</acronym>`            |
-| `<span class="style"><acronym title="formal language">form</acronym>`           | `<span class=\"style\"><acronym title=\"([A-Za-zА-Яа-я ]+)\">[A-Za-zА-Яа-я]+</acronym>`              |
-| `<span class="style"><acronym title="informal">inf</acronym>`                   | `<span class=\"style\"><acronym title=\"([A-Za-zА-Яа-я ]+)\">[A-Za-zА-Яа-я]+</acronym>`              |
-| `<span class="style"><acronym title="literary">liter</acronym>`                 | `<span class=\"style\"><acronym title=\"([A-Za-zА-Яа-я ]+)\">[A-Za-zА-Яа-я]+</acronym>`              |
-| `<span class="style"><acronym title="slang">sl</acronym>`                       | `<span class=\"style\"><acronym title=\"([A-Za-zА-Яа-я ]+)\">[A-Za-zА-Яа-я]+</acronym>`              |
-| `<span class="style"><acronym title="vulgar">vulg</acronym>`                    | `<span class=\"style\"><acronym title=\"([A-Za-zА-Яа-я ]+)\">[A-Za-zА-Яа-я]+</acronym>`              |
-| `<span class="style"><acronym title="също">и</acronym>`                         | `<span class=\"style\"><acronym title=\"([A-Za-zА-Яа-я ]+)\">[A-Za-zА-Яа-я]+</acronym>`              |
-| `<span class="topic"><acronym title="administration">ADMIN</acronym>`           | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="anatomy">ANAT</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="architecture">ARCHIT</acronym>`            | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="art">ART</acronym>`                        | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="astrology, astronomy">ASTRO</acronym>`     | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="automobile, transport">AUTO</acronym>`     | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="aviation">AVIAT</acronym>`                 | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="biology">BIOL</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="botany">BOT</acronym>`                     | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="chemistry">CHEM</acronym>`                 | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="commerce">COMM</acronym>`                  | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="computing">COMPUT</acronym>`               | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="construction">CONSTR</acronym>`            | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="ecology">ECOL</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="economy">ECON</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="electricity, electrical engineering">ELEC</acronym>` | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`             |
-| `<span class="topic"><acronym title="film, cinema">CINE</acronym>`              | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="finance">FIN</acronym>`                    | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="food and cooking">FOOD</acronym>`          | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="geography">GEOG</acronym>`                 | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="geology">GEOL</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="history">HISTORY</acronym>`                | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="industry">INDUST</acronym>`                | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="law">LAW</acronym>`                        | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="linguistics, grammar">LING</acronym>`      | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="literature">LIT</acronym>`                 | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="mathematics">MATH</acronym>`               | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="medicine">MED</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="meteorology">METEO</acronym>`              | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="military">MIL</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="mining, mineralogy">MIN</acronym>`         | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="music">MUS</acronym>`                      | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="mythology">MYTH</acronym>`                 | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="nautical, naval">NAUT</acronym>`           | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="philosophy">PHILOS</acronym>`              | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="photography">PHOTO</acronym>`              | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="physics">PHYS</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="politics">POL</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="psychology">PSYCH</acronym>`               | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="radio broadcasting">RADIO</acronym>`       | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="railway">RAIL</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="religion">REL</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="school, education">SCHOOL</acronym>`       | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="sociology">SOCIOL</acronym>`               | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="sports">SPORTS</acronym>`                  | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="technology">TECH</acronym>`                | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="telecommunications">TELEC</acronym>`       | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="television">TV</acronym>`                  | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="theatre">THEAT</acronym>`                  | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="typography, printing">TYPO</acronym>`      | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="university">UNIV</acronym>`                | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="topic"><acronym title="zoology">ZOOL</acronym>`                   | `<span class=\"topic\"><acronym title=\"([A-Za-z ,]+)\">[A-Za-z]+</acronym>`                         |
-| `<span class="verbclass"><acronym title="impersonal verb">impers</acronym>`     | `<span class=\"verbclass\"><acronym title=\"([A-Za-z ]+ verb)\">[A-Za-z]+</acronym>`                 |
-| `<span class="verbclass"><acronym title="intransitive verb">intr</acronym>`     | `<span class=\"verbclass\"><acronym title=\"([A-Za-z ]+ verb)\">[A-Za-z]+</acronym>`                 |
-| `<span class="verbclass"><acronym title="reflexive verb">refl</acronym>`        | `<span class=\"verbclass\"><acronym title=\"([A-Za-z ]+ verb)\">[A-Za-z]+</acronym>`                 |
-| `<span class="verbclass"><acronym title="transitive verb">trans</acronym>`      | `<span class=\"verbclass\"><acronym title=\"([A-Za-z ]+ verb)\">[A-Za-z]+</acronym>`                 |
-| `<span class="wordclass"><acronym title="adjective">ADJ</acronym>`              | `<span class=\"wordclass\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                      |
-| `<span class="wordclass"><acronym title="adverb">ADV</acronym>`                 | `<span class=\"wordclass\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                      |
-| `<span class="wordclass"><acronym title="conjunction">CONJ</acronym>`           | `<span class=\"wordclass\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                      |
-| `<span class="wordclass"><acronym title="noun">N</acronym>`                     | `<span class=\"wordclass\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                      |
-| `<span class="wordclass"><acronym title="numeral">NUM</acronym>`                | `<span class=\"wordclass\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                      |
-| `<span class="wordclass"><acronym title="particle">PARTICLE</acronym>`          | `<span class=\"wordclass\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                      |
-| `<span class="wordclass"><acronym title="pronoun">PRON</acronym>`               | `<span class=\"wordclass\"><acronym title=\"([A-Za-z ]+)\">[A-Za-z]+</acronym>`                      |
+For the full table of patterns and their corresponding regex, see [html-acronym-regex-reference.csv](html-acronym-regex-reference.csv).
 
 ---
 
