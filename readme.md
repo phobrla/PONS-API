@@ -172,168 +172,44 @@ This section explains the inner workings of `PONSAPI.py` in detail, combining a 
 
 ---
 
-## Requirements
+## Regex for Matching Span and Acronym Patterns
 
-- Python 3.7+
-- [requests](https://pypi.org/project/requests/)
-- [pyxlsb](https://pypi.org/project/pyxlsb/)
-- (Optional, for `.xlsx` support) [openpyxl](https://pypi.org/project/openpyxl/)
+This regex is designed to match the following HTML patterns (with double backslashes for escaping):
 
-Install dependencies (preferably in a virtual environment):
+- `<span class=\"info\">SomeText</span> / <span class=\"other\">OtherText</span>`
+- `<span class=\"info\"><acronym title=\"също\">и</acronym></span> / <span class=\"info\"><acronym title=\"...\">...</acronym></span>`
 
-```sh
-pip install requests pyxlsb openpyxl
+### Pattern
+
+```regex
+<span class=\\\"info\\\">(?:[^<]+|<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>)</span> ?/ ?<span class=\\\"[^<]*\\\">(?:[^<]*|<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>)</span>
 ```
 
----
+### Explanation
 
-## File Structure
+- `<span class=\\\"info\\\">`: Matches a `<span>` tag with the class `info` (escaped).
+- `(?:[^<]+|<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>)`:
+  - `[^<]+`: Matches any text content that does not include a `<` character.
+  - `<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>`: Matches an `<acronym>` tag with a `title` attribute containing Cyrillic or Latin characters, spaces, commas, colons, backslashes, or periods, and containing Cyrillic or Latin text content.
+- `</span> ?/ ?`: Matches the closing `</span>` tag, a slash (`/`), and optional spaces.
+- `<span class=\\\"[^<]*\\\">`: Matches another `<span>` tag with any class name.
+- `(?:[^<]*|<acronym title=\\\"([A-Za-zА-Яа-я :,\\\\.]*)\\\">[A-Za-zА-Яа-я]+</acronym>)`: Matches either plain text or another `<acronym>` tag as described above.
+- `</span>`: Matches the closing `</span>` tag.
 
-- **PONSAPI.py** – Main Python script.
-- **Inputs_for_PONS_API.txt** – List of Bulgarian terms (one per line) to query.
-- **PONS json Files/** – Directory where fetched PONS API results are stored as JSON.
-- **Flashcards.xlsb** – Your flashcard database (must have a sheet named "Anki").
-- **Query Parts of Speech.json** – (Optional) Stores mappings for parts of speech.
-- **debug_YYYYMMDDTHHMMSS.log** – Log file for each run.
+### Usage
 
----
+- This pattern can be used to match both simple text and acronym-containing spans on either side of a `/`.
+- The double backslashes ensure compatibility with environments that require double-escaping (e.g., in a string literal in some languages or regex engines).
 
-## Usage
+### Example Matches
 
-### 1. Prepare your files
+- `<span class=\"info\">отр</span> / <span class=\"other\">some text</span>`
+- `<span class=\"info\"><acronym title=\"също\">и</acronym></span> / <span class=\"info\"><acronym title=\"също\">и</acronym></span>`
 
-- Place all files in the directories specified in the script, or modify the paths at the top of `PONSAPI.py`.
-- `Flashcards.xlsb` must have a sheet named `Anki` with at least these columns:  
-  **"Bulgarian 1"**, **"Bulgarian 2"**, **"Part of Speech"**, **"Note ID"**  
-  (See the full 66-column list in the section above.)
+### Notes
 
-### 2. Fetch PONS data
-
-Set the mode at the top of `PONSAPI.py`:
-
-```python
-mode = "fetch"
-```
-
-Run the script:
-
-```sh
-python PONSAPI.py
-```
-
-This will:
-- Read terms from `Inputs_for_PONS_API.txt`
-- Fetch their dictionary entries from the PONS API
-- Save all results in `PONS json Files/concatenated.json`
-
-### 3. Reconcile flashcards with dictionary data
-
-Set the mode to `process`:
-
-```python
-mode = "process"
-```
-
-Run again:
-
-```sh
-python PONSAPI.py
-```
-
-This will:
-- Load your flashcards from `Flashcards.xlsb`
-- Compare each entry with the fetched PONS API data
-- Attempt several match strategies (exact, partial, cutoff)
-- Log detailed results and progress
-
-### 4. Review Results
-
-- The script logs all actions to a new `debug_YYYYMMDDTHHMMSS.log` file in your base directory.
-- (Optional) The results can be extended to write to a new worksheet or file for further analysis.
-
----
-
-## Matching Logic (Summary)
-
-1. **Level 1:** Exact match on term and part of speech.
-2. **Level 2:** Exact match on term, different part of speech.
-3. **Level 3:** Partial matches via indirect references, collocations, etc.
-4. **Level 4:** Applies cutoff logic (removes certain endings) and retries matching.
-
-All matching steps are logged for transparency.
-
----
-
-## Configuration
-
-- All file paths are set at the top of `PONSAPI.py`. Adjust as needed for your environment.
-- Logging is set to `DEBUG` and creates a new log file for every run.
-- The PONS API secret key must be set in the script (replace `"XXX"` with your actual key).
-
----
-
-## Limitations
-
-- Writes results to logs only by default. Modify or extend the script to write results to an output sheet or another file type if needed.
-- Large `.xlsb` files may take significant time to process (progress is logged).
-- Only supports `.xlsb` for reading. If you want to write back to Excel, use `.xlsx` and [`openpyxl`](https://pypi.org/project/openpyxl/).
-
----
-
-## Things That Don’t Work
-
-This section documents approaches and coding attempts that were tried in this project but **did not work**. These notes are here to remind me never to return to these methods or patterns.
-
-- **Using openpyxl with `.xlsb` files:**  
-  *openpyxl* does **not** support reading or writing Excel binary workbook files (`.xlsb`). Attempts to use openpyxl led to errors like  
-  `openpyxl does not support binary format .xlsb, please convert this file to .xlsx format if you want to open it with openpyxl`.  
-  **Never use openpyxl with .xlsb. Use pyxlsb for reading .xlsb files.**
-
-- **Writing back to `.xlsb` files**:  
-  There is **no reliable library** in Python for writing data back to `.xlsb` files. pyxlsb can only read. Attempts to write results to `.xlsb` failed or resulted in corrupted files.  
-  **Do not attempt to write to .xlsb. If output to Excel is required, convert to `.xlsx` and use openpyxl or another suitable library.**
-
-- **Mixing openpyxl and pyxlsb in the same workflow:**  
-  Trying to use both libraries for the same file or in the same read/write loop leads to confusion and errors, especially regarding file handles and memory.  
-  **Stick to one library per file and workflow.**
-
-- **Expecting pyxlsb to handle formulas, formatting, or anything but basic values:**  
-  pyxlsb is limited to extracting cell values only. It does **not** support writing, nor does it preserve formatting or formulas.  
-  **Do not rely on pyxlsb for anything except simple cell value reads.**
-
-- **Naive Unicode/encoding handling for large `.xlsb` or text files:**  
-  Not explicitly specifying encoding or not handling Unicode issues caused failures on non-ASCII flashcards or API results.  
-  **Always use UTF-8 and handle decoding errors as needed.**
-
-- **Sequential API fetching for very large input lists:**  
-  Fetching thousands of terms from the PONS API sequentially without batching or rate-limiting can be extremely slow and/or lead to throttling.  
-  **Don’t fetch large lists in one go without considering batching or respecting API limits.**
-
-- **Assuming API or Excel column order is fixed:**  
-  Hard-coding column indices led to mismatches when the underlying Excel schema changed.  
-  **Always verify header rows and use header names, not indices.**
-
-- **Saving results only to logs:**  
-  Relying solely on logs for output made it hard to analyze or use results programmatically.  
-  **Always build an explicit export step (CSV, XLSX, or JSON) for results.**
-
----
-
-*This section is a living document. If you try something and it fails, document it here so you won’t repeat past mistakes!*
-
----
-
-## Troubleshooting
-
-- **No output or only a few log lines?**
-  - Check that your input files exist at the specified paths.
-  - Inspect the log file for any errors.
-- **openpyxl error about .xlsb?**
-  - This script uses `pyxlsb` and does not require `.xlsx` conversion for reading.
-- **API errors?**
-  - Make sure your PONS API key is valid and not rate-limited.
-- **Performance issues?**
-  - For very large flashcard sets, run the process overnight or in batches.
+- Adjust `[A-Za-zА-Яа-я :,\\\\.]*` for stricter or broader title attribute matching if needed.
+- This pattern is flexible for a wide range of similar HTML constructs.
 
 ---
 
@@ -380,6 +256,83 @@ print(result)  # Output: Example Title
 ### License
 
 This project is provided under the MIT License.
+
+---
+
+## Superscript Representation Guide
+
+This document describes how to represent superscripts such as `<sup>1</sup>`, `<sup>2</sup>`, and `<sup>3</sup>` in JSON.
+
+### Superscript HTML
+
+```html
+<sup>1</sup>
+<sup>2</sup>
+<sup>3</sup>
+```
+
+### Superscript in JSON
+
+The superscript values can be represented in JSON as follows:
+
+```json
+{
+  "sup": ["1", "2", "3"]
+}
+```
+
+Each value in the `"sup"` array corresponds to the content inside a `<sup>` HTML tag.
+
+### Example Usage
+
+If you need to represent a series of superscript references, include them as shown above.
+
+For example, if you want to indicate that a word or phrase has three superscript references, you might include:
+
+```json
+{
+  "word": "example",
+  "sup": ["1", "2", "3"]
+}
+```
+
+### Notes
+
+- This approach is simple and extensible for any number of superscripts.
+- If you need to associate the superscript with additional information (such as footnote content), consider using an array of objects, e.g.:
+
+```json
+{
+  "superscripts": [
+    {"value": "1", "note": "First footnote"},
+    {"value": "2", "note": "Second footnote"},
+    {"value": "3", "note": "Third footnote"}
+  ]
+}
+```
+
+---
+
+## Acronym Conversion Reference Table
+
+Below are example JSON structures showing how `<span>` and nested `<acronym>` tags with titles and contents can be represented as JSON objects, grouped by their parent span class.
+
+```json
+{"span class":"conjugation","children":[{"Acronym Title":"imperfective form","Acronym Content":"imperf"},{"Acronym Title":"perfective form","Acronym Content":"perf"}]}
+{"span class":"example","children":[{"Acronym Title":"нещо","Acronym Content":"нщ"},{"Acronym Title":"някого","Acronym Content":"нкг"},{"Acronym Title":"някому","Acronym Content":"нкм"},{"Acronym Title":"също","Acronym Content":"и"}]}
+{"span class":"genus","children":[{"Acronym Title":"feminine","Acronym Content":"f"},{"Acronym Title":"masculine and feminine","Acronym Content":"mf"},{"Acronym Title":"masculine","Acronym Content":"m"},{"Acronym Title":"neuter","Acronym Content":"nt"}]}
+{"span class":"idiom_proverb","children":[{"Acronym Title":"нещо","Acronym Content":"нщ"},{"Acronym Title":"някого","Acronym Content":"нкг"},{"Acronym Title":"също","Acronym Content":"и"}]}
+{"span class":"info","children":[{"Acronym Title":"[blank]","Acronym Content":"или"},{"Acronym Title":"abbreviation of","Acronym Content":"abbrev of"},{"Acronym Title":"accusative","Acronym Content":"acc"},{"Acronym Title":"countable","Acronym Content":"count:"},{"Acronym Title":"dative","Acronym Content":"dat"},{"Acronym Title":"no plural","Acronym Content":"no pl"},{"Acronym Title":"usually","Acronym Content":"usu"},{"Acronym Title":"виж","Acronym Content":"вж."},{"Acronym Title":"множествено число","Acronym Content":"pl"},{"Acronym Title":"множествено число","Acronym Content":"мн"},{"Acronym Title":"също","Acronym Content":"и"}]}
+{"span class":"number","children":[{"Acronym Title":"plural","Acronym Content":"pl"}]}
+{"span class":"or","children":[{"Acronym Title":"or","Acronym Content":"or"},{"Acronym Title":"или","Acronym Content":"o."}]}
+{"span class":"reference_qualification","children":[{"Acronym Title":"множествено число","Acronym Content":"мн"}]}
+{"span class":"region","children":[{"Acronym Title":"Irish\" class=\"Irish","Acronym Content":"Irish"}]}
+{"span class":"rhetoric","children":[{"Acronym Title":"figurative","Acronym Content":"fig"},{"Acronym Title":"ironic","Acronym Content":"iron"},{"Acronym Title":"pejorative","Acronym Content":"pej"},{"Acronym Title":"proverb","Acronym Content":"prov"},{"Acronym Title":"също","Acronym Content":"и"}]}
+{"span class":"style","children":[{"Acronym Title":"formal language","Acronym Content":"form"},{"Acronym Title":"informal","Acronym Content":"inf"},{"Acronym Title":"literary","Acronym Content":"liter"},{"Acronym Title":"slang","Acronym Content":"sl"},{"Acronym Title":"vulgar","Acronym Content":"vulg"},{"Acronym Title":"също","Acronym Content":"и"}]}
+{"span class":"topic","children":[{"Acronym Title":"administration","Acronym Content":"ADMIN"},{"Acronym Title":"anatomy","Acronym Content":"ANAT"},{"Acronym Title":"architecture","Acronym Content":"ARCHIT"},{"Acronym Title":"art","Acronym Content":"ART"},{"Acronym Title":"astrology, astronomy","Acronym Content":"ASTRO"},{"Acronym Title":"automobile, transport","Acronym Content":"AUTO"},{"Acronym Title":"aviation","Acronym Content":"AVIAT"},{"Acronym Title":"biology","Acronym Content":"BIOL"},{"Acronym Title":"botany","Acronym Content":"BOT"},{"Acronym Title":"chemistry","Acronym Content":"CHEM"},{"Acronym Title":"commerce","Acronym Content":"COMM"},{"Acronym Title":"computing","Acronym Content":"COMPUT"},{"Acronym Title":"construction","Acronym Content":"CONSTR"},{"Acronym Title":"ecology","Acronym Content":"ECOL"},{"Acronym Title":"economy","Acronym Content":"ECON"},{"Acronym Title":"electricity, electrical engineering","Acronym Content":"ELEC"},{"Acronym Title":"film, cinema","Acronym Content":"CINE"},{"Acronym Title":"finance","Acronym Content":"FIN"},{"Acronym Title":"food and cooking","Acronym Content":"FOOD"},{"Acronym Title":"geography","Acronym Content":"GEOG"},{"Acronym Title":"geology","Acronym Content":"GEOL"},{"Acronym Title":"history","Acronym Content":"HISTORY"},{"Acronym Title":"industry","Acronym Content":"INDUST"},{"Acronym Title":"law","Acronym Content":"LAW"},{"Acronym Title":"linguistics, grammar","Acronym Content":"LING"},{"Acronym Title":"literature","Acronym Content":"LIT"},{"Acronym Title":"mathematics","Acronym Content":"MATH"},{"Acronym Title":"medicine","Acronym Content":"MED"},{"Acronym Title":"meteorology","Acronym Content":"METEO"},{"Acronym Title":"military","Acronym Content":"MIL"},{"Acronym Title":"mining, mineralogy","Acronym Content":"MIN"},{"Acronym Title":"music","Acronym Content":"MUS"},{"Acronym Title":"mythology","Acronym Content":"MYTH"},{"Acronym Title":"nautical, naval","Acronym Content":"NAUT"},{"Acronym Title":"philosophy","Acronym Content":"PHILOS"},{"Acronym Title":"photography","Acronym Content":"PHOTO"},{"Acronym Title":"physics","Acronym Content":"PHYS"},{"Acronym Title":"politics","Acronym Content":"POL"},{"Acronym Title":"psychology","Acronym Content":"PSYCH"},{"Acronym Title":"radio broadcasting","Acronym Content":"RADIO"},{"Acronym Title":"railway","Acronym Content":"RAIL"},{"Acronym Title":"religion","Acronym Content":"REL"},{"Acronym Title":"school, education","Acronym Content":"SCHOOL"},{"Acronym Title":"sociology","Acronym Content":"SOCIOL"},{"Acronym Title":"sports","Acronym Content":"SPORTS"},{"Acronym Title":"technology","Acronym Content":"TECH"},{"Acronym Title":"telecommunications","Acronym Content":"TELEC"},{"Acronym Title":"television","Acronym Content":"TV"},{"Acronym Title":"theatre","Acronym Content":"THEAT"},{"Acronym Title":"typography, printing","Acronym Content":"TYPO"},{"Acronym Title":"university","Acronym Content":"UNIV"},{"Acronym Title":"zoology","Acronym Content":"ZOOL"}]}
+{"span class":"verbclass","children":[{"Acronym Title":"impersonal verb","Acronym Content":"impers"},{"Acronym Title":"intransitive verb","Acronym Content":"intr"},{"Acronym Title":"reflexive verb","Acronym Content":"refl"},{"Acronym Title":"transitive verb","Acronym Content":"trans"}]}
+{"span class":"wordclass","children":[{"Acronym Title":"adjective","Acronym Content":"ADJ"},{"Acronym Title":"adverb","Acronym Content":"ADV"},{"Acronym Title":"conjunction","Acronym Content":"CONJ"},{"Acronym Title":"noun","Acronym Content":"N"},{"Acronym Title":"numeral","Acronym Content":"NUM"},{"Acronym Title":"particle","Acronym Content":"PARTICLE"},{"Acronym Title":"pronoun","Acronym Content":"PRON"}]}
+```
 
 ---
 
