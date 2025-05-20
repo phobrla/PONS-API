@@ -15,6 +15,83 @@ PONSAPI is a Python utility for automating the reconciliation of Bulgarian vocab
 
 ---
 
+## Note on the "Anki" Table Structure
+
+The `Flashcards.xlsb` file must contain a sheet named **"Anki"**.  
+> **The "Anki" table contains 66 columns with the following headers (in order):**
+
+1. Note ID  
+2. Bulgarian 1  
+3. Bulgarian 2  
+4. English 1  
+5. English 2  
+6. English 3  
+7. English 4  
+8. English 5  
+9. English 6  
+10. PONS Status 1  
+11. PONS Status 2  
+12. PONS en I.1  
+13. PONS en I.2  
+14. PONS en I.3  
+15. PONS en I.4  
+16. PONS en I.5  
+17. PONS en II.1  
+18. PONS en II.2  
+19. PONS en II.3  
+20. PONS en III.1  
+21. PONS en III.2  
+22. PONS en III.3  
+23. PONS en III.4  
+24. PONS en III.5  
+25. PONS en IV.1  
+26. PONS en IV.2  
+27. PONS en V.1  
+28. PONS en>bg 1  
+29. PONS en>bg 2  
+30. PONS en>bg 3  
+31. PONS en>bg 4  
+32. PONS en>bg 5  
+33. PONS en>bg 6  
+34. Google Translate  
+35. Wikipedia  
+36. Part of Speech  
+37. Type  
+38. Type 2  
+39. Hint  
+40. Hint 2  
+41. Imperfective Present  
+42. Imperfective Aorist  
+43. Perfective Present  
+44. Perfective Aorist  
+45. Adjective Masculine  
+46. Adjective Feminine  
+47. Adjective Neuter  
+48. Adjective Plural  
+49. Noun Short Definite  
+50. Noun Long Definite  
+51. Noun Plural  
+52. Noun Numeral Plural  
+53. Noun Plural Definite  
+54. Noun Vocative  
+55. Female Equivalent Noun Long Definite  
+56. Female Equivalent Noun Plural  
+57. Female Equivalent Noun Plural Definite  
+58. Female Equivalent Noun Vocative  
+59. Part  
+60. Bulgarian Sound  
+61. English Sound  
+62. Bulgarian 1 Syllables  
+63. Bulgarian 2 Syllables  
+64. Beron Status 1  
+65. Beron Status 2  
+66. Tags  
+
+> **Note:** Some versions of the table may have more or fewer columns, but this is the standard structure expected by the script.  
+> Only a subset of these columns are used for PONSAPI’s processing and matching logic (e.g., "Bulgarian 1", "Part of Speech", etc.), but the file must include all columns for compatibility.
+
+---
+
 ## Code Structure & Detailed Workflow
 
 This section explains the inner workings of `PONSAPI.py` in detail, combining a step-by-step pseudocode walkthrough with explanations of the main components.
@@ -127,7 +204,8 @@ pip install requests pyxlsb openpyxl
 
 - Place all files in the directories specified in the script, or modify the paths at the top of `PONSAPI.py`.
 - `Flashcards.xlsb` must have a sheet named `Anki` with at least these columns:  
-  **"Bulgarian 1"**, **"Bulgarian 2"**, **"Part of Speech"**, **"Note ID"**
+  **"Bulgarian 1"**, **"Bulgarian 2"**, **"Part of Speech"**, **"Note ID"**  
+  (See the full 66-column list in the section above.)
 
 ### 2. Fetch PONS data
 
@@ -256,6 +334,52 @@ This section documents approaches and coding attempts that were tried in this pr
   - Make sure your PONS API key is valid and not rate-limited.
 - **Performance issues?**
   - For very large flashcard sets, run the process overnight or in batches.
+
+---
+
+## Regex to Extract "title" from `<acronym>` Tags
+
+This project provides a regular expression for extracting the content of the `title` attribute from HTML `<acronym>` tags, discarding the tags themselves and their inner content.
+
+### Purpose
+
+When processing HTML, you may want to remove `<acronym>` tags but retain only the value from their `title` attribute. This is useful for text extraction, simplifying markup, or transforming HTML for text-only outputs.
+
+### Regular Expression
+
+```regex
+<acronym[^>]*title=["']([^"']+)["'][^>]*>.*?<\/acronym>
+```
+
+#### How It Works
+
+- `<acronym`: Matches the start of an `<acronym>` tag.
+- `[^>]*`: Matches any tag attributes.
+- `title=["']([^"']+)["']`: Captures the value of the `title` attribute in group 1.
+- `[^>]*`: Consumes any additional attributes or spaces.
+- `>.*?<\/acronym>`: Matches the tag content and the closing `</acronym>`.
+
+### Usage Example
+
+#### Python
+
+```python
+import re
+
+html = '<acronym title="Example Title">Some content</acronym>'
+result = re.sub(r'<acronym[^>]*title=["\']([^"\']+)["\'][^>]*>.*?<\/acronym>', r'\1', html)
+print(result)  # Output: Example Title
+```
+
+### Limitations
+
+- Assumes the `title` attribute is always present.
+- Does not handle nested `<acronym>` tags.
+- Not suitable for parsing ambiguous or malformed HTML. For full HTML parsing, use a dedicated HTML parser like BeautifulSoup.
+
+### License
+
+This project is provided under the MIT License.
 
 ---
 
