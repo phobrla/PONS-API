@@ -190,7 +190,7 @@ Extract the content of the `title` attribute from HTML `<acronym>` tags, discard
 <acronym[^>]*title=["']([^"']+)["'][^>]*>.*?<\/acronym>
 ```
 
-**Python Example:**
+##### Python Example
 ```python
 import re
 
@@ -203,13 +203,13 @@ print(result)  # Output: Example Title
 
 This document describes how to represent superscripts such as `<sup>1</sup>`, `<sup>2</sup>`, and `<sup>3</sup>` in JSON.
 
-**Superscript HTML Example:**
+##### Superscript HTML Example
 ```html
 <sup>1</sup>
 <sup>2</sup>
 <sup>3</sup>
 ```
-**Superscript in JSON:**
+##### Superscript in JSON:
 ```json
 {
   "sup": ["1", "2", "3"]
