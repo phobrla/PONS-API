@@ -289,6 +289,25 @@ This regex is designed to match the following HTML patterns (with double backsla
 
 ---
 
+## Combined Regex Pattern
+
+You can combine the two regex patterns into one using an alternation (`|`) to account for both patterns. Here is the combined regex:
+
+```regex
+<span class=\\"info\\">([^<]*|<acronym title=\\"([A-Za-zА-Яа-я :,\\\\.]*)\\">[A-Za-zА-Яа-я]+</acronym>)</span>
+```
+
+### Explanation
+
+1. **Outer `<span>` tag**: `<span class=\\"info\\">` and `</span>` are the same for both patterns.
+2. **Alternation (`|`)**:
+    - The first part matches: `[^<]*` (no `<` characters inside the span).
+    - The second part matches: `<acronym title=\\"([A-Za-zА-Яа-я :,\\\\.]*)\\">[A-Za-zА-Яа-я]+</acronym>`.
+
+This combined regex will match either of the two patterns inside the `<span>` tag.
+
+---
+
 ## HTML Acronym Regex Reference
 
 This document lists how to match specific HTML-acronym patterns in (JSON-escaped) HTML using regex.  
