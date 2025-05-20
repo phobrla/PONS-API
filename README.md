@@ -410,9 +410,9 @@ This project is provided under the MIT License.
 
 ---
 
-## Optional Acronym Regex Patterns
+## Optional & Generalized Acronym Regex Patterns
 
-The following regex patterns match `<span>` elements with optional `<acronym>` tags inside.  
+The following regex patterns match `<span>` elements with optional `<acronym>` tags inside, and can be used as generalized replacements for extracting content from various `<span>` elements with specific classes.  
 For each, the acronym is optional. The regex captures the acronym's `title` attribute and the main content within the `<span>`.  
 All other groups are non-capturing.  
 The escaped `\\"` format is retained for compatibility.
@@ -435,27 +435,7 @@ The escaped `\\"` format is retained for compatibility.
 <span class=\\"wordclass\\">(?:([^<]*)|<acronym title=\\"([A-Za-z ]+)\\">([A-Za-z]+)</acronym>)</span>
 ```
 
----
-
-## Notes
-
-- For each regex:
-  - The first capturing group is the plain text (when no acronym is present).
-  - The second capturing group is the acronym's `title` attribute (if present).
-  - The third capturing group is the acronym's display text (if present).
-  - Everything else is in a non-capturing group.
-
-- These patterns allow you to reliably extract either the plain text or the acronym details from the HTML.
-
----
-
-## Generalized Regex Replacements for `<span>` Patterns
-
-This document provides generalized regex patterns for extracting content from various `<span>` elements with specific classes. The patterns are updated to use `[^<]+` instead of any language-specific character classes (such as `[А-Яа-я]+`, `[A-Za-z]+`, or `[A-Za-zА-Яа-я]+`) for greater flexibility and coverage.
-
----
-
-## Regex Patterns
+And in a more general form (using [^<]+ for broader matching):
 
 ```regex
 <span class=\"conjugation\">(?:([^<]*)|<acronym title=\"([^<]+)\">([^<]+)</acronym>)</span>
@@ -476,12 +456,14 @@ This document provides generalized regex patterns for extracting content from va
 <span class=\"wordclass\">(?:([^<]*)|<acronym title=\"([^<]+)\">([^<]+)</acronym>)</span>
 ```
 
----
-
-## Notes
-
-- All character class ranges like `[А-Яа-я]+`, `[A-Za-z]+`, or `[A-Za-zА-Яа-я]+` have been replaced with `[^<]+` to match any sequence of characters that does not include the `<` character.
-- This generalization increases the robustness and flexibility of the patterns, allowing them to match a wider range of content regardless of language or alphabet.
+**Notes:**
+- For each regex:
+  - The first capturing group is the plain text (when no acronym is present).
+  - The second capturing group is the acronym's `title` attribute (if present).
+  - The third capturing group is the acronym's display text (if present).
+  - Everything else is in a non-capturing group.
+- These patterns allow you to reliably extract either the plain text or the acronym details from the HTML.
+- All character class ranges like `[А-Яа-я]+`, `[A-Za-z]+`, or `[A-Za-zА-Яа-я]+` have been replaced with `[^<]+` to match any sequence of characters that does not include the `<` character, increasing robustness and flexibility.
 - The structure of the regex for each `<span>` type remains the same; only the inner matching logic has been generalized.
 
 ---
@@ -542,24 +524,7 @@ For example, if you want to indicate that a word or phrase has three superscript
 
 ## Acronym Conversion Reference Table
 
-Below are example JSON structures showing how `<span>` and nested `<acronym>` tags with titles and contents can be represented as JSON objects, grouped by their parent span class.
-
-```json
-{"span class":"conjugation","children":[{"Acronym Title":"imperfective form","Acronym Content":"imperf"},{"Acronym Title":"perfective form","Acronym Content":"perf"}]}
-{"span class":"example","children":[{"Acronym Title":"нещо","Acronym Content":"нщ"},{"Acronym Title":"някого","Acronym Content":"нкг"},{"Acronym Title":"някому","Acronym Content":"нкм"},{"Acronym Title":"също","Acronym Content":"и"}]}
-{"span class":"genus","children":[{"Acronym Title":"feminine","Acronym Content":"f"},{"Acronym Title":"masculine and feminine","Acronym Content":"mf"},{"Acronym Title":"masculine","Acronym Content":"m"},{"Acronym Title":"neuter","Acronym Content":"nt"}]}
-{"span class":"idiom_proverb","children":[{"Acronym Title":"нещо","Acronym Content":"нщ"},{"Acronym Title":"някого","Acronym Content":"нкг"},{"Acronym Title":"също","Acronym Content":"и"}]}
-{"span class":"info","children":[{"Acronym Title":"[blank]","Acronym Content":"или"},{"Acronym Title":"abbreviation of","Acronym Content":"abbrev of"},{"Acronym Title":"accusative","Acronym Content":"acc"},{"Acronym Title":"countable","Acronym Content":"count:"},{"Acronym Title":"dative","Acronym Content":"dat"},{"Acronym Title":"no plural","Acronym Content":"no pl"},{"Acronym Title":"usually","Acronym Content":"usu"},{"Acronym Title":"виж","Acronym Content":"вж."},{"Acronym Title":"множествено число","Acronym Content":"pl"},{"Acronym Title":"множествено число","Acronym Content":"мн"},{"Acronym Title":"също","Acronym Content":"и"}]}
-{"span class":"number","children":[{"Acronym Title":"plural","Acronym Content":"pl"}]}
-{"span class":"or","children":[{"Acronym Title":"or","Acronym Content":"or"},{"Acronym Title":"или","Acronym Content":"o."}]}
-{"span class":"reference_qualification","children":[{"Acronym Title":"множествено число","Acronym Content":"мн"}]}
-{"span class":"region","children":[{"Acronym Title":"Irish\" class=\"Irish","Acronym Content":"Irish"}]}
-{"span class":"rhetoric","children":[{"Acronym Title":"figurative","Acronym Content":"fig"},{"Acronym Title":"ironic","Acronym Content":"iron"},{"Acronym Title":"pejorative","Acronym Content":"pej"},{"Acronym Title":"proverb","Acronym Content":"prov"},{"Acronym Title":"също","Acronym Content":"и"}]}
-{"span class":"style","children":[{"Acronym Title":"formal language","Acronym Content":"form"},{"Acronym Title":"informal","Acronym Content":"inf"},{"Acronym Title":"literary","Acronym Content":"liter"},{"Acronym Title":"slang","Acronym Content":"sl"},{"Acronym Title":"vulgar","Acronym Content":"vulg"},{"Acronym Title":"също","Acronym Content":"и"}]}
-{"span class":"topic","children":[{"Acronym Title":"administration","Acronym Content":"ADMIN"},{"Acronym Title":"anatomy","Acronym Content":"ANAT"},{"Acronym Title":"architecture","Acronym Content":"ARCHIT"},{"Acronym Title":"art","Acronym Content":"ART"},{"Acronym Title":"astrology, astronomy","Acronym Content":"ASTRO"},{"Acronym Title":"automobile, transport","Acronym Content":"AUTO"},{"Acronym Title":"aviation","Acronym Content":"AVIAT"},{"Acronym Title":"biology","Acronym Content":"BIOL"},{"Acronym Title":"botany","Acronym Content":"BOT"},{"Acronym Title":"chemistry","Acronym Content":"CHEM"},{"Acronym Title":"commerce","Acronym Content":"COMM"},{"Acronym Title":"computing","Acronym Content":"COMPUT"},{"Acronym Title":"construction","Acronym Content":"CONSTR"},{"Acronym Title":"ecology","Acronym Content":"ECOL"},{"Acronym Title":"economy","Acronym Content":"ECON"},{"Acronym Title":"electricity, electrical engineering","Acronym Content":"ELEC"},{"Acronym Title":"film, cinema","Acronym Content":"CINE"},{"Acronym Title":"finance","Acronym Content":"FIN"},{"Acronym Title":"food and cooking","Acronym Content":"FOOD"},{"Acronym Title":"geography","Acronym Content":"GEOG"},{"Acronym Title":"geology","Acronym Content":"GEOL"},{"Acronym Title":"history","Acronym Content":"HISTORY"},{"Acronym Title":"industry","Acronym Content":"INDUST"},{"Acronym Title":"law","Acronym Content":"LAW"},{"Acronym Title":"linguistics, grammar","Acronym Content":"LING"},{"Acronym Title":"literature","Acronym Content":"LIT"},{"Acronym Title":"mathematics","Acronym Content":"MATH"},{"Acronym Title":"medicine","Acronym Content":"MED"},{"Acronym Title":"meteorology","Acronym Content":"METEO"},{"Acronym Title":"military","Acronym Content":"MIL"},{"Acronym Title":"mining, mineralogy","Acronym Content":"MIN"},{"Acronym Title":"music","Acronym Content":"MUS"},{"Acronym Title":"mythology","Acronym Content":"MYTH"},{"Acronym Title":"nautical, naval","Acronym Content":"NAUT"},{"Acronym Title":"philosophy","Acronym Content":"PHILOS"},{"Acronym Title":"photography","Acronym Content":"PHOTO"},{"Acronym Title":"physics","Acronym Content":"PHYS"},{"Acronym Title":"politics","Acronym Content":"POL"},{"Acronym Title":"psychology","Acronym Content":"PSYCH"},{"Acronym Title":"radio broadcasting","Acronym Content":"RADIO"},{"Acronym Title":"railway","Acronym Content":"RAIL"},{"Acronym Title":"religion","Acronym Content":"REL"},{"Acronym Title":"school, education","Acronym Content":"SCHOOL"},{"Acronym Title":"sociology","Acronym Content":"SOCIOL"},{"Acronym Title":"sports","Acronym Content":"SPORTS"},{"Acronym Title":"technology","Acronym Content":"TECH"},{"Acronym Title":"telecommunications","Acronym Content":"TELEC"},{"Acronym Title":"television","Acronym Content":"TV"},{"Acronym Title":"theatre","Acronym Content":"THEAT"},{"Acronym Title":"typography, printing","Acronym Content":"TYPO"},{"Acronym Title":"university","Acronym Content":"UNIV"},{"Acronym Title":"zoology","Acronym Content":"ZOOL"}]}
-{"span class":"verbclass","children":[{"Acronym Title":"impersonal verb","Acronym Content":"impers"},{"Acronym Title":"intransitive verb","Acronym Content":"intr"},{"Acronym Title":"reflexive verb","Acronym Content":"refl"},{"Acronym Title":"transitive verb","Acronym Content":"trans"}]}
-{"span class":"wordclass","children":[{"Acronym Title":"adjective","Acronym Content":"ADJ"},{"Acronym Title":"adverb","Acronym Content":"ADV"},{"Acronym Title":"conjunction","Acronym Content":"CONJ"},{"Acronym Title":"noun","Acronym Content":"N"},{"Acronym Title":"numeral","Acronym Content":"NUM"},{"Acronym Title":"particle","Acronym Content":"PARTICLE"},{"Acronym Title":"pronoun","Acronym Content":"PRON"}]}
-```
+See [Acronyms.json](Acronyms.json) for the complete set of conversion mappings and example JSON structures showing how `<span>` and nested `<acronym>` tags with titles and contents can be represented as JSON objects, grouped by their parent span class.
 
 ---
 
