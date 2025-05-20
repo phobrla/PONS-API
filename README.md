@@ -216,10 +216,6 @@ This document describes how to represent superscripts such as `<sup>1</sup>`, `<
 }
 ```
 
-#### Acronym Conversion Reference Table
-
-See [Acronyms.json](Acronyms.json) for the complete set of conversion mappings and example JSON structures showing how `<span>` and nested `<acronym>` tags with titles and contents can be represented as JSON objects, grouped by their parent span class.
-
 ---
 
 ### Legacy
@@ -340,6 +336,10 @@ And, in a more general form:
   - The second capturing group is the acronym's `title` attribute (if present).
   - The third capturing group is the acronym's display text (if present).
 - All character class ranges like `[А-Яа-я]+`, `[A-Za-z]+`, or `[A-Za-zА-Яа-я]+` have been replaced with `[^<]+` in the generalized form for flexibility.
+
+#### Acronym Conversion Reference Table
+
+See [Acronyms.json](Acronyms.json) for the complete set of conversion mappings and example JSON structures showing how `<span>` and nested `<acronym>` tags with titles and contents can be represented as JSON objects, grouped by their parent span class.
 
 </details>
 
