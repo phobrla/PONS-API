@@ -173,6 +173,81 @@ This section explains the inner workings of `PONSAPI.py` in detail, combining a 
 
 ---
 
+## Regex to Find `<span>` Elements with Multiple `<acronym>` Tags
+
+This document explains how to use a regex to find HTML `<span>` elements that contain more than one `<acronym>` tag, and demonstrates correct and incorrect matches.
+
+---
+
+### Regex Pattern
+
+```regex
+<span\b[^>]*>(?:[^<]*<acronym\b[^>]*>.*?<\/acronym>[^<]*){2,}<\/span>
+```
+
+#### Explanation
+
+- `<span\b[^>]*>`  
+  Matches the opening `<span>` tag with optional attributes.
+
+- `(?:[^<]*<acronym\b[^>]*>.*?<\/acronym>[^<]*){2,}`  
+  Non-capturing group to match at least two `<acronym>` tags (and their content) within the same `<span>`.  
+  - `[^<]*` matches any non-tag text between tags.
+  - `<acronym\b[^>]*>` matches the opening `<acronym>` tag with optional attributes.
+  - `.*?<\/acronym>` matches the content and the closing `</acronym>` tag.
+
+- `<\/span>`  
+  Matches the closing `</span>` tag.
+
+---
+
+### Example Usage in Python
+
+```python
+import re
+
+html = '''
+<span class="rhetoric"><acronym title="също">и</acronym> <acronym title="figurative">fig</acronym></span>
+<span class="wordclass"><acronym title="adjective">ADJ</acronym></span>
+<span class="topic"><acronym title="technology">TECH</acronym>, <acronym title="computing">COMPUT</acronym></span>
+<span class="flexion">&lt;-ът&gt;</span>
+'''
+
+pattern = r'<span\b[^>]*>(?:[^<]*<acronym\b[^>]*>.*?<\/acronym>[^<]*){2,}<\/span>'
+
+matches = re.findall(pattern, html, re.DOTALL)
+for match in matches:
+    print(match)
+```
+
+---
+
+### Correct Match Example
+
+```html
+<span class="rhetoric"><acronym title="също">и</acronym> <acronym title="figurative">fig</acronym></span>
+```
+
+---
+
+### Incorrect Match Examples (these will **not** match)
+
+```html
+<span class="wordclass"><acronym title="adjective">ADJ</acronym></span>
+<span class="genus"><acronym title="masculine">m</acronym></span>
+<span class="flexion">&lt;-ът&gt;</span>
+```
+
+---
+
+### Additional Notes
+
+- The regex will **not match** `<span>` elements that contain only one or zero `<acronym>` tags.
+- It is robust against unrelated `<span>` tags in the same HTML block.
+- For complex or malformed HTML, consider using an HTML parser (like BeautifulSoup in Python) for greater accuracy.
+
+---
+
 ## Regex for Matching Span and Acronym Patterns
 
 This regex is designed to match the following HTML patterns (with double backslashes for escaping):
