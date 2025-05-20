@@ -162,12 +162,12 @@ This section explains the inner workings of `PONSAPI.py` in detail, combining a 
 
 6. **End Script**
 
-**Key Functions:**
+### Key Functions
 - `fetch_and_concatenate()`: Handles all API fetching and concatenation into a single JSON file.
 - `process_and_reconcile()`: Handles all logic for matching flashcards with API data.
 - `extract_roms()`, `extract_wordclass()`, `match_partial()`, `apply_cutoff_logic()`: Helpers for parsing and matching.
 
-**Notes on Extending:**
+### Notes on Extending
 - To write results back to Excel, export to `.xlsx` and use `openpyxl`.
 - To support more advanced Unicode or error handling, extend the relevant I/O sections.
 - To speed up API calls, consider batching or async requests.
@@ -232,12 +232,12 @@ This regex matches either of these two HTML patterns and captures the aspect as 
 - `<span class="conjugation"><acronym title="imperfective form">imperf</acronym></span>`
 - `<span class="conjugation"><acronym title="perfective form">perf</acronym></span>`
 
-**Regex:**
+##### Regex
 ```regex
 <span class="conjugation"><acronym title="(imperfective form|perfective form)">(imperf|perf)</acronym></span>
 ```
 
-**Capturing Groups:**
+##### Capturing Groups
 1. Aspect string – `imperfective form` or `perfective form`
 2. Abbreviation – `imperf` or `perf`
 
@@ -330,7 +330,7 @@ And, in a more general form:
 <span class=\"wordclass\">(?:([^<]*)|<acronym title=\"([^<]+)\">([^<]+)</acronym>)</span>
 ```
 
-**Notes:**
+##### Notes
 - For each regex:
   - The first capturing group is the plain text (when no acronym is present).
   - The second capturing group is the acronym's `title` attribute (if present).
