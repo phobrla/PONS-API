@@ -1,104 +1,104 @@
-Span Class	Acronym Title	Acronym Content
-conjugation	imperfective form	imperf
-conjugation	perfective form	perf
-example	нещо	нщ
-example	някого	нкг
-example	някому	нкм
-example	също	и
-genus	feminine	f
-genus	masculine and feminine	mf
-genus	masculine	m
-genus	neuter	nt
-idiom_proverb	нещо	нщ
-idiom_proverb	някого	нкг
-idiom_proverb	също	и
-info	[blank]	или
-info	abbreviation of	abbrev of
-info	accusative	acc
-info	countable	count:
-info	dative	dat
-info	no plural	no pl
-info	usually	usu
-info	виж	вж.
-info	множествено число	pl
-info	множествено число	мн
-info	също	и
-number	plural	pl
-or	or	or
-or	или	o.
-reference_qualification	множествено число	мн
-region	Irish\\\\" class=\\\"Irish	Irish
-rhetoric	figurative	fig
-rhetoric	ironic	iron
-rhetoric	pejorative	pej
-rhetoric	proverb	prov
-rhetoric	също	и
-style	formal language	form
-style	informal	inf
-style	literary	liter
-style	slang	sl
-style	vulgar	vulg
-style	също	и
-topic	administration	ADMIN
-topic	anatomy	ANAT
-topic	architecture	ARCHIT
-topic	art	ART
-topic	astrology, astronomy	ASTRO
-topic	automobile, transport	AUTO
-topic	aviation	AVIAT
-topic	biology	BIOL
-topic	botany	BOT
-topic	chemistry	CHEM
-topic	commerce	COMM
-topic	computing	COMPUT
-topic	construction	CONSTR
-topic	ecology	ECOL
-topic	economy	ECON
-topic	electricity, electrical engineering	ELEC
-topic	film, cinema	CINE
-topic	finance	FIN
-topic	food and cooking	FOOD
-topic	geography	GEOG
-topic	geology	GEOL
-topic	history	HISTORY
-topic	industry	INDUST
-topic	law	LAW
-topic	linguistics, grammar	LING
-topic	literature	LIT
-topic	mathematics	MATH
-topic	medicine	MED
-topic	meteorology	METEO
-topic	military	MIL
-topic	mining, mineralogy	MIN
-topic	music	MUS
-topic	mythology	MYTH
-topic	nautical, naval	NAUT
-topic	philosophy	PHILOS
-topic	photography	PHOTO
-topic	physics	PHYS
-topic	politics	POL
-topic	psychology	PSYCH
-topic	radio broadcasting	RADIO
-topic	railway	RAIL
-topic	religion	REL
-topic	school, education	SCHOOL
-topic	sociology	SOCIOL
-topic	sports	SPORTS
-topic	technology	TECH
-topic	telecommunications	TELEC
-topic	television	TV
-topic	theatre	THEAT
-topic	typography, printing	TYPO
-topic	university	UNIV
-topic	zoology	ZOOL
-verbclass	impersonal verb	impers
-verbclass	intransitive verb	intr
-verbclass	reflexive verb	refl
-verbclass	transitive verb	trans
-wordclass	adjective	ADJ
-wordclass	adverb	ADV
-wordclass	conjunction	CONJ
-wordclass	noun	N
-wordclass	numeral	NUM
-wordclass	particle	PARTICLE
-wordclass	pronoun	PRON
+"Span Class","Acronym Title","Acronym Content"
+"conjugation","imperfective form","imperf"
+"conjugation","perfective form","perf"
+"example","нещо","нщ"
+"example","някого","нкг"
+"example","някому","нкм"
+"example","също","и"
+"genus","feminine","f"
+"genus","masculine and feminine","mf"
+"genus","masculine","m"
+"genus","neuter","nt"
+"idiom_proverb","нещо","нщ"
+"idiom_proverb","някого","нкг"
+"idiom_proverb","също","и"
+"info","[blank]","или"
+"info","abbreviation of","abbrev of"
+"info","accusative","acc"
+"info","countable","count:"
+"info","dative","dat"
+"info","no plural","no pl"
+"info","usually","usu"
+"info","виж","вж."
+"info","множествено число","pl"
+"info","множествено число","мн"
+"info","също","и"
+"number","plural","pl"
+"or","or","or"
+"or","или","o."
+"reference_qualification","множествено число","мн"
+"region","Irish\"" class=\""Irish","Irish"
+"rhetoric","figurative","fig"
+"rhetoric","ironic","iron"
+"rhetoric","pejorative","pej"
+"rhetoric","proverb","prov"
+"rhetoric","също","и"
+"style","formal language","form"
+"style","informal","inf"
+"style","literary","liter"
+"style","slang","sl"
+"style","vulgar","vulg"
+"style","също","и"
+"topic","administration","ADMIN"
+"topic","anatomy","ANAT"
+"topic","architecture","ARCHIT"
+"topic","art","ART"
+"topic","astrology, astronomy","ASTRO"
+"topic","automobile, transport","AUTO"
+"topic","aviation","AVIAT"
+"topic","biology","BIOL"
+"topic","botany","BOT"
+"topic","chemistry","CHEM"
+"topic","commerce","COMM"
+"topic","computing","COMPUT"
+"topic","construction","CONSTR"
+"topic","ecology","ECOL"
+"topic","economy","ECON"
+"topic","electricity, electrical engineering","ELEC"
+"topic","film, cinema","CINE"
+"topic","finance","FIN"
+"topic","food and cooking","FOOD"
+"topic","geography","GEOG"
+"topic","geology","GEOL"
+"topic","history","HISTORY"
+"topic","industry","INDUST"
+"topic","law","LAW"
+"topic","linguistics, grammar","LING"
+"topic","literature","LIT"
+"topic","mathematics","MATH"
+"topic","medicine","MED"
+"topic","meteorology","METEO"
+"topic","military","MIL"
+"topic","mining, mineralogy","MIN"
+"topic","music","MUS"
+"topic","mythology","MYTH"
+"topic","nautical, naval","NAUT"
+"topic","philosophy","PHILOS"
+"topic","photography","PHOTO"
+"topic","physics","PHYS"
+"topic","politics","POL"
+"topic","psychology","PSYCH"
+"topic","radio broadcasting","RADIO"
+"topic","railway","RAIL"
+"topic","religion","REL"
+"topic","school, education","SCHOOL"
+"topic","sociology","SOCIOL"
+"topic","sports","SPORTS"
+"topic","technology","TECH"
+"topic","telecommunications","TELEC"
+"topic","television","TV"
+"topic","theatre","THEAT"
+"topic","typography, printing","TYPO"
+"topic","university","UNIV"
+"topic","zoology","ZOOL"
+"verbclass","impersonal verb","impers"
+"verbclass","intransitive verb","intr"
+"verbclass","reflexive verb","refl"
+"verbclass","transitive verb","trans"
+"wordclass","adjective","ADJ"
+"wordclass","adverb","ADV"
+"wordclass","conjunction","CONJ"
+"wordclass","noun","N"
+"wordclass","numeral","NUM"
+"wordclass","particle","PARTICLE"
+"wordclass","pronoun","PRON"
