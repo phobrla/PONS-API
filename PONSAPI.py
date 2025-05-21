@@ -7,7 +7,9 @@ import json
 import logging
 from datetime import datetime
 from collections import Counter
-from pyxlsb import open_workbook
+import pandas as pd
+from openpyxl import load_workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 # Selector to choose the function to run
 # Options: "fetch", "process"
@@ -21,7 +23,7 @@ input_file_path = os.path.join(base_directory, "Inputs_for_PONS_API.txt")
 output_directory = os.path.join(base_directory, "PONS json Files")
 concatenated_file_path = os.path.join(output_directory, "concatenated.json")
 query_parts_of_speech_json_path = os.path.join(base_directory, "Query Parts of Speech.json")
-flashcards_xlsb_path = os.path.join(base_directory, "Flashcards.xlsb")
+flashcards_xlsm_path = os.path.join(base_directory, "Flashcards.xlsm")
 
 # Ensure the output directory exists
 os.makedirs(output_directory, exist_ok=True)
@@ -190,10 +192,30 @@ def fetch_and_concatenate():
         logging.error(f"Exception in fetch_and_concatenate: {e}", exc_info=True)
 
 
+def write_results_to_xlsm(results, xlsm_path, sheet_name="Results"):
+    """
+    Write the results to a 'Results' worksheet in the existing XLSM file, preserving macros.
+    If the sheet exists, it will be replaced.
+    """
+    logging.info(f"Writing {len(results)} results to '{sheet_name}' in {xlsm_path}")
+    df = pd.DataFrame(results)
+    wb = load_workbook(xlsm_path, keep_vba=True)
+    # Remove old Results sheet if it exists
+    if sheet_name in wb.sheetnames:
+        std = wb[sheet_name]
+        wb.remove(std)
+    # Add DataFrame as new worksheet
+    ws = wb.create_sheet(title=sheet_name)
+    for r in dataframe_to_rows(df, index=False, header=True):
+        ws.append(r)
+    wb.save(xlsm_path)
+    logging.info(f"Wrote {len(results)} results to {xlsm_path} in sheet '{sheet_name}'")
+
+
 def process_and_reconcile():
     """
-    Processes entries from concatenated.json, reconciles them with Flashcards.xlsb,
-    and saves the combined results into the 'Reconciled_Results' tab of Flashcards.xlsb.
+    Processes entries from concatenated.json, reconciles them with Flashcards.xlsm,
+    and saves the combined results into the 'Results' worksheet of Flashcards.xlsm.
     """
     logging.info("Starting process_and_reconcile function.")
 
@@ -201,8 +223,8 @@ def process_and_reconcile():
         logging.error(f"Concatenated JSON file not found at {concatenated_file_path}.")
         return
 
-    if not os.path.exists(flashcards_xlsb_path):
-        logging.error(f"Flashcards.xlsb file not found at {flashcards_xlsb_path}.")
+    if not os.path.exists(flashcards_xlsm_path):
+        logging.error(f"Flashcards.xlsm file not found at {flashcards_xlsm_path}.")
         return
 
     try:
@@ -211,24 +233,31 @@ def process_and_reconcile():
             concatenated_data = json.load(file)
         logging.debug(f"Loaded {len(concatenated_data)} entries from concatenated.json.")
 
-        logging.info("Loading Flashcards.xlsb workbook using pyxlsb.")
-        with open_workbook(flashcards_xlsb_path) as wb:
-            with wb.get_sheet("Anki") as sheet:
-                anki_data = []
-                for row_idx, row in enumerate(sheet.rows()):
-                    # Skip the header row
-                    if row[0].v == "Bulgarian 1":
-                        continue
-                    row_data = {
-                        "Bulgarian 1": row[0].v,
-                        "Bulgarian 2": row[1].v,
-                        "Part of Speech": row[2].v,
-                        "Note ID": row[3].v
-                    }
-                    anki_data.append(row_data)
-                    if row_idx % 1000 == 0:
-                        logging.debug(f"Loaded row {row_idx}: {row_data}")
-        logging.info(f"Collected {len(anki_data)} rows from Anki worksheet.")
+        # Use pandas to read the Anki sheet from XLSM
+        anki_data = []
+        try:
+            wb = load_workbook(flashcards_xlsm_path, read_only=True, keep_vba=True)
+            if "Anki" not in wb.sheetnames:
+                logging.error("Sheet 'Anki' not found in Flashcards.xlsm.")
+                return
+            ws = wb["Anki"]
+            rows = list(ws.iter_rows(values_only=True))
+            headers = rows[0]
+            for i, row in enumerate(rows[1:]):
+                row_data = dict(zip(headers, row))
+                # Only keep relevant fields
+                anki_data.append({
+                    "Bulgarian 1": row_data.get("Bulgarian 1"),
+                    "Bulgarian 2": row_data.get("Bulgarian 2"),
+                    "Part of Speech": row_data.get("Part of Speech"),
+                    "Note ID": row_data.get("Note ID")
+                })
+                if i % 1000 == 0:
+                    logging.debug(f"Loaded row {i}: {anki_data[-1]}")
+            logging.info(f"Collected {len(anki_data)} rows from Anki worksheet.")
+        except Exception as e:
+            logging.error(f"Error loading Anki sheet from Flashcards.xlsm: {e}", exc_info=True)
+            return
 
         results = []
 
@@ -369,17 +398,14 @@ def process_and_reconcile():
             if idx % 100 == 0 or not found_match:
                 logging.debug(f"Result appended for row {idx}: Note ID={note_id}, Match Level={match_level}")
 
-        # Save results (modify to save back to .xlsb if needed)
-        results_path = os.path.join(output_directory, f"reconciled_results_{datetime.now().strftime('%Y%m%dT%H%M%S')}.json")
+        # Save results to XLSM Results worksheet
         try:
-            with open(results_path, 'w', encoding='utf-8') as f:
-                json.dump(results, f, ensure_ascii=False, indent=4)
-                logging.info(f"Saved results to {results_path}")
+            write_results_to_xlsm(results, flashcards_xlsm_path, sheet_name="Results")
         except Exception as e:
-            logging.error(f"Exception saving results: {e}", exc_info=True)
+            logging.error(f"Exception saving results to Excel: {e}", exc_info=True)
 
         # Log summary statistics
-        logging.info(f"Processing complete. Total rows: {len(anki_data)}. Results saved.")
+        logging.info(f"Processing complete. Total rows: {len(anki_data)}. Results saved to Results worksheet in Flashcards.xlsm.")
         match_levels = Counter(result['Match Level'] for result in results)
         for level, count in match_levels.items():
             logging.info(f"Rows matched at level {level}: {count}")
