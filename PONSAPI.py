@@ -50,6 +50,9 @@ def extract_roms(data):
     """
     Extract ROMS from JSON data.
     """
+    if not isinstance(data, dict):
+        logging.error(f"extract_roms called with non-dict data type: {type(data)}; data={str(data)[:200]}")
+        return []
     logging.debug(f"Entered extract_roms with data keys: {list(data.keys())}")
     hits = data.get("hits", [])
     for hit in hits:
@@ -123,7 +126,7 @@ def extract_hints(data):
     """
     Extract example hints or other supporting info from JSON data.
     """
-    logging.debug(f"Entered extract_hints with data keys: {list(data.keys())}")
+    logging.debug(f"Entered extract_hints with data type: {type(data)}")
     hints = []
     try:
         for rom in extract_roms(data):
