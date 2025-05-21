@@ -10,6 +10,7 @@ from collections import Counter
 import pandas as pd
 from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 # Selector to choose the function to run
 # Options: "fetch", "process"
@@ -33,20 +34,16 @@ cutoff_strings = [
     " се", " [в]", " си", " [с]", " за", " в", " (се)", " (се) [с]", " (се) да"
 ]
 
-# Summary data for logging
-summary_data = Counter()
-
-# Setup logging
+# Setup logging (reduce to INFO to shrink file)
 log_file = os.path.join(base_directory, f"debug_{datetime.now().strftime('%Y%m%dT%H%M%S')}.log")
 logging.basicConfig(
     filename=log_file,
-    level=logging.DEBUG,
+    level=logging.INFO,  # set to INFO to keep log file smaller
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 logging.info("Script started")
 logging.info(f"Mode: {mode}")
-
 
 def extract_roms(data):
     """
@@ -55,39 +52,26 @@ def extract_roms(data):
     if not isinstance(data, dict):
         logging.error(f"extract_roms called with non-dict data type: {type(data)}; data={str(data)[:200]}")
         return []
-    logging.debug(f"Entered extract_roms with data keys: {list(data.keys())}")
     hits = data.get("hits", [])
     for hit in hits:
         for rom in hit.get("roms", []):
-            logging.debug(f"Yielding rom from hit: {rom}")
             yield rom
-    logging.debug("Exiting extract_roms")
-
 
 def extract_wordclass(rom):
     """
     Extract wordclass from headword_full.
     """
     headword_full = rom.get("headword_full", "")
-    logging.debug(f"Entered extract_wordclass with headword_full: {headword_full}")
     match = re.search(r'<span class="wordclass">([^<]+)</span>', headword_full)
-    if match:
-        logging.debug(f"Extracted wordclass: {match.group(1)}")
-    else:
-        logging.debug("No wordclass found in headword_full.")
-    logging.debug("Exiting extract_wordclass")
     return match.group(1) if match else None
-
 
 def match_partial(bulgarian_1, data):
     """
     Match partial fields like indirect references, full_collocation, or reflection.
     """
-    logging.debug(f"Entered match_partial for bulgarian_1: {bulgarian_1}")
     for rom in extract_roms(data):
         header = rom.get("header", "")
         source = rom.get("source", "")
-        logging.debug(f"Checking rom header: {header}, source: {source}")
 
         partial_matches = [
             (r'<span class="indirect_reference_OTHER">([^<]+)</span>', "3b"),
@@ -99,48 +83,32 @@ def match_partial(bulgarian_1, data):
         for pattern, level in partial_matches:
             match = re.search(pattern, header) or re.search(pattern, source)
             if match and bulgarian_1 == match.group(1):
-                logging.debug(f"Partial match found: Level {level}, Match: {match.group(1)}")
-                logging.debug("Exiting match_partial with result")
                 return level, match.group(1)
-
-    logging.debug("No partial match found in match_partial.")
-    logging.debug("Exiting match_partial with no match")
     return "No Match", None
-
 
 def apply_cutoff_logic(bulgarian_1):
     """
     Apply cutoff logic to revise Bulgarian 1 and attempt a match.
     """
-    logging.debug(f"Entered apply_cutoff_logic for bulgarian_1: {bulgarian_1}")
     for cutoff in cutoff_strings:
-        if bulgarian_1.endswith(cutoff):
+        if bulgarian_1 and bulgarian_1.endswith(cutoff):
             revised_query = bulgarian_1[: -len(cutoff)].strip()
-            logging.debug(f"Cutoff applied: {cutoff}, Revised Query: {revised_query}")
-            logging.debug("Exiting apply_cutoff_logic with cutoff applied")
             return cutoff, revised_query
-    logging.debug("No cutoff applied in apply_cutoff_logic.")
-    logging.debug("Exiting apply_cutoff_logic with no cutoff")
     return None, None
-
 
 def extract_hints(data):
     """
     Extract example hints or other supporting info from JSON data.
     """
-    logging.debug(f"Entered extract_hints with data type: {type(data)}")
     hints = []
     try:
         for rom in extract_roms(data):
             examples = rom.get("examples", [])
             for example in examples:
                 hints.append(example)
-        logging.debug(f"Extracted hints: {hints}")
     except Exception as e:
         logging.error(f"Exception in extract_hints: {e}", exc_info=True)
-    logging.debug("Exiting extract_hints")
     return hints
-
 
 def fetch_and_concatenate():
     """
@@ -154,7 +122,7 @@ def fetch_and_concatenate():
             for idx, line in enumerate(file):
                 query_term = line.strip()
                 if query_term:
-                    logging.debug(f"[{idx}] Fetching data for query: {query_term}")
+                    logging.info(f"[{idx}] Fetching data for query: {query_term}")
                     url = f"https://api.pons.com/v1/dictionary?q={query_term}&l=bgen"
                     headers = {
                         "X-Secret": "XXX"
@@ -162,7 +130,7 @@ def fetch_and_concatenate():
                     try:
                         response = requests.get(url, headers=headers)
                         if response.status_code == 200:
-                            logging.debug(f"Successful API response for query: {query_term}")
+                            logging.info(f"Successful API response for query: {query_term}")
                             concatenated_data.append({
                                 "query": query_term,
                                 "data": response.json()
@@ -191,11 +159,10 @@ def fetch_and_concatenate():
     except Exception as e:
         logging.error(f"Exception in fetch_and_concatenate: {e}", exc_info=True)
 
-
 def write_results_to_xlsm(results, xlsm_path, sheet_name="Results"):
     """
-    Write the results to a 'Results' worksheet in the existing XLSM file, preserving macros.
-    If the sheet exists, it will be replaced.
+    Write the results to a 'Results' worksheet in the existing XLSM file, preserving macros,
+    and format the sheet as a table with auto-fit columns.
     """
     logging.info(f"Writing {len(results)} results to '{sheet_name}' in {xlsm_path}")
     df = pd.DataFrame(results)
@@ -208,9 +175,31 @@ def write_results_to_xlsm(results, xlsm_path, sheet_name="Results"):
     ws = wb.create_sheet(title=sheet_name)
     for r in dataframe_to_rows(df, index=False, header=True):
         ws.append(r)
-    wb.save(xlsm_path)
-    logging.info(f"Wrote {len(results)} results to {xlsm_path} in sheet '{sheet_name}'")
 
+    # Auto-fit column widths (based on cell content length)
+    for column in ws.columns:
+        max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in column)
+        column_letter = column[0].column_letter
+        ws.column_dimensions[column_letter].width = max_length + 2  # Add padding for readability
+
+    # Create a table in the worksheet
+    last_col_letter = ws.cell(row=1, column=ws.max_column).column_letter
+    table_range = f"A1:{last_col_letter}{ws.max_row}"  # Covers all rows including headers
+    table = Table(displayName="Table1", ref=table_range)
+
+    # Apply a table style (medium, row stripes, no column stripes)
+    style = TableStyleInfo(
+        name="TableStyleMedium2",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False
+    )
+    table.tableStyleInfo = style
+    ws.add_table(table)
+
+    wb.save(xlsm_path)
+    logging.info(f"Wrote {len(results)} results to {xlsm_path} in sheet '{sheet_name}' (as table)")
 
 def process_and_reconcile():
     """
@@ -231,7 +220,7 @@ def process_and_reconcile():
         logging.info("Loading concatenated.json file.")
         with open(concatenated_file_path, 'r', encoding='utf-8') as file:
             concatenated_data = json.load(file)
-        logging.debug(f"Loaded {len(concatenated_data)} entries from concatenated.json.")
+        logging.info(f"Loaded {len(concatenated_data)} entries from concatenated.json.")
 
         # Use pandas to read the Anki sheet from XLSM
         anki_data = []
@@ -252,8 +241,6 @@ def process_and_reconcile():
                     "Part of Speech": row_data.get("Part of Speech"),
                     "Note ID": row_data.get("Note ID")
                 })
-                if i % 1000 == 0:
-                    logging.debug(f"Loaded row {i}: {anki_data[-1]}")
             logging.info(f"Collected {len(anki_data)} rows from Anki worksheet.")
         except Exception as e:
             logging.error(f"Error loading Anki sheet from Flashcards.xlsm: {e}", exc_info=True)
@@ -266,7 +253,7 @@ def process_and_reconcile():
             bulgarian_1 = anki_row["Bulgarian 1"]
             part_of_speech = anki_row["Part of Speech"]
             note_id = anki_row["Note ID"]
-            logging.debug(f"Processing row {idx}: Note ID={note_id}, Bulgarian 1={bulgarian_1}, Part of Speech={part_of_speech}")
+            bulgarian_2 = anki_row["Bulgarian 2"]
 
             match_level = "No Match"
             matched_value = None
@@ -278,17 +265,14 @@ def process_and_reconcile():
 
             found_match = False
 
-            # Try all entries in concatenated_data
             for json_entry in concatenated_data:
                 query = json_entry["query"]
                 data = json_entry.get("data", {})
 
                 # Level 1: Exact match with matching wordclass
                 if bulgarian_1 == query:
-                    logging.debug(f"Level 1: Exact match for query: {query} (row {idx})")
                     for rom in extract_roms(data):
                         wordclass = extract_wordclass(rom)
-                        logging.debug(f"Checking wordclass: {wordclass} (expected: {part_of_speech})")
                         if wordclass == part_of_speech:
                             match_level = "1"
                             matched_value = query
@@ -297,18 +281,15 @@ def process_and_reconcile():
                             pons_status_1 = "Exact Match"
                             pons_status_2 = "Wordclass Match"
                             found_match = True
-                            logging.debug(f"Level 1 match succeeded for {bulgarian_1}. Hints: {hint_1}, {hint_2}")
                             break
                     if found_match:
                         break
 
-            # If not found, try Level 2
             if not found_match:
                 for json_entry in concatenated_data:
                     query = json_entry["query"]
                     data = json_entry.get("data", {})
                     if bulgarian_1 == query:
-                        logging.debug(f"Level 2: Exact match for query: {query} (row {idx})")
                         match_level = "2"
                         matched_value = query
                         hints = extract_hints(data)
@@ -316,10 +297,8 @@ def process_and_reconcile():
                         pons_status_1 = "Exact Match"
                         pons_status_2 = "No Wordclass Match"
                         found_match = True
-                        logging.debug(f"Level 2 match succeeded for {bulgarian_1}. Hints: {hint_1}, {hint_2}")
                         break
 
-            # If not found, try partial match
             if not found_match:
                 for json_entry in concatenated_data:
                     query = json_entry["query"]
@@ -333,10 +312,8 @@ def process_and_reconcile():
                         pons_status_1 = "Partial Match"
                         pons_status_2 = f"Level {level}"
                         found_match = True
-                        logging.debug(f"Partial match succeeded at level {level} for {bulgarian_1}. Hints: {hint_1}, {hint_2}")
                         break
 
-            # If still not found, try cutoff logic
             if not found_match:
                 cutoff, revised_query = apply_cutoff_logic(bulgarian_1)
                 if cutoff and revised_query:
@@ -345,7 +322,6 @@ def process_and_reconcile():
                         data = json_entry.get("data", {})
                         # Try Level 1 again with revised query
                         if revised_query == query:
-                            logging.debug(f"Level 4: Cutoff match for revised query: {revised_query} (cutoff: {cutoff}, row {idx})")
                             for rom in extract_roms(data):
                                 wordclass = extract_wordclass(rom)
                                 if wordclass == part_of_speech:
@@ -357,11 +333,9 @@ def process_and_reconcile():
                                     pons_status_1 = "Cutoff Match"
                                     pons_status_2 = f"Wordclass Match (cutoff: {cutoff})"
                                     found_match = True
-                                    logging.debug(f"Cutoff Level 4 match succeeded for {bulgarian_1} -> {revised_query}. Hints: {hint_1}, {hint_2}")
                                     break
                             if found_match:
                                 break
-                    # Try Level 2 with cutoff
                     if not found_match:
                         for json_entry in concatenated_data:
                             query = json_entry["query"]
@@ -375,17 +349,17 @@ def process_and_reconcile():
                                 pons_status_1 = "Cutoff Match"
                                 pons_status_2 = f"No Wordclass Match (cutoff: {cutoff})"
                                 found_match = True
-                                logging.debug(f"Cutoff Level 4 match (no wordclass) succeeded for {bulgarian_1} -> {revised_query}. Hints: {hint_1}, {hint_2}")
                                 break
 
-            if not found_match:
-                logging.debug(f"No match found for Note ID={note_id}, Bulgarian 1={bulgarian_1}")
+            # PONS Status 2 should be blank if Bulgarian 2 is blank or None
+            if not bulgarian_2:
+                pons_status_2 = ""
 
-            # Append result details for this row
             results.append({
                 "Note ID": note_id,
                 "Bulgarian 1": bulgarian_1,
                 "Part of Speech": part_of_speech,
+                "Bulgarian 2": bulgarian_2,
                 "Match Level": match_level,
                 "Matched Value": matched_value,
                 "Cutoff Applied": cutoff_applied,
@@ -394,9 +368,6 @@ def process_and_reconcile():
                 "PONS Status 1": pons_status_1,
                 "PONS Status 2": pons_status_2
             })
-
-            if idx % 100 == 0 or not found_match:
-                logging.debug(f"Result appended for row {idx}: Note ID={note_id}, Match Level={match_level}")
 
         # Save results to XLSM Results worksheet
         try:
@@ -412,7 +383,6 @@ def process_and_reconcile():
 
     except Exception as e:
         logging.error(f"An error occurred in process_and_reconcile: {e}", exc_info=True)
-
 
 # Main workflow
 if mode == "fetch":
