@@ -185,7 +185,7 @@ def write_results_to_xlsm(results, xlsm_path, sheet_name="Results"):
     # Create a table in the worksheet
     last_col_letter = ws.cell(row=1, column=ws.max_column).column_letter
     table_range = f"A1:{last_col_letter}{ws.max_row}"  # Covers all rows including headers
-    table = Table(displayName="Table1", ref=table_range)
+    table = Table(displayName="Results", ref=table_range)
 
     # Apply a table style (medium, row stripes, no column stripes)
     style = TableStyleInfo(
